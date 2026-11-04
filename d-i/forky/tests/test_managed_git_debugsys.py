@@ -72,6 +72,8 @@ class PatternTests(Fixture):
         self.assertNotIn('debian/*',gitops.load_patterns(path,'salsa'))
     def test_empty_list(self):
         self.assertEqual(gitops.load_patterns(self.config('',''),'forks'),[])
+    def test_unprotected_workflow_does_not_read_or_apply_policy(self):
+        self.assertEqual(gitops.load_patterns(self.root/'missing-gitops.env',None),[])
     def test_parent_components_and_rooted_subtree(self):
         for name,pattern in [('a/.gitignore','.gitignore'),('x.keep/file','*.keep'),('debian/source/format','debian/*'),('debian','debian/*'),('dir/keep/a','dir/keep'),('dir/a','dir/')]:
             with self.subTest(name=name): self.assertTrue(gitops.protected(name,[pattern]))
@@ -147,6 +149,11 @@ class RealGitTests(PatternTests):
         self.sync(workflow='salsa')
         self.assertEqual(payload_read_text(self.repo/'lock'),'replace-directory')
         self.assertTrue(payload_source_exists(self.repo/'new.keep'))
+    def test_unprotected_sync_replaces_local_policy_paths(self):
+        self.sync(workflow=None)
+        self.assertEqual(payload_read_text(self.repo/'lock'),'replace-directory')
+        self.assertTrue(payload_source_exists(self.repo/'new.keep'))
+        self.assertIn('Full tree sync from',self.g('show','-s','--format=%s','HEAD'))
     def test_dirty_index_worktree_untracked_refused(self):
         for state in ('worktree','index','untracked'):
             with self.subTest(state=state):

@@ -329,6 +329,10 @@ ignored-path collisions, sparse/skip-worktree/assume-unchanged state and active
 Git operations are refused. When a protected sync records gitlinks, the managed
 workflow refreshes their worktrees after the commit.
 
+Only the explicit `mcr-fork-*` aliases load `GITOPS_FORKS_MERGE_PROTECTED`, and
+only the explicit `mcr-salsa-*` aliases load `GITOPS_SALSA_MERGE_PROTECTED`.
+Generic `mcr-branch-*`, `mcr-repo-*`, and the bare `sync` command use no
+protected relative paths; they copy the selected source tree as a whole.
 Fork and Salsa sync/cicd/update/push aliases apply their protected policy and
 verify the resulting refs automatically. `verify-protected-sync` remains a
 read-only diagnostic. Every managed synchronization, initialization, and push
@@ -357,15 +361,16 @@ git mcr-fork-cicd
 
 | Aliases | Behavior |
 | --- | --- |
-| `mcr-branch-init`, `mcr-fork-init`, `mcr-salsa-init` | Fetch origin, repair local and remote main/staging/release/feature-initial branches, configure upstreams, and leave `mcr/main` checked out |
-| `mcr-branch-create NAME` | Fetch origin, create or reconcile a validated non-core `mcr/*` branch, configure tracking, publish it, and verify the remote |
+| `mcr-branch-init` | Fetch origin, repair local and remote main/staging/release/feature-initial branches with no protected paths, configure upstreams, and leave `mcr/main` checked out |
+| `mcr-fork-init`, `mcr-salsa-init` | Fetch origin, repair local and remote main/staging/release/feature-initial branches, apply only the selected family policy while synchronizing its mirror, configure upstreams, and leave `mcr/main` checked out |
+| `mcr-branch-create NAME` | Fetch origin, create or reconcile a validated non-core `mcr/*` branch with no protected paths, configure tracking, publish it, and verify the remote |
 | `mcr-branch-delete NAME` | Delete a merged non-core local branch only |
 | `mcr-branch-show`, `mcr-repo-status` | Status, branches and remotes |
 | `mcr-repo-clone SSH-URL [DEST]` or `mcr-repo-clone <gh|glab> NAMESPACE REPO` | Clone an existing GitHub/GitLab repository through SSH |
 | `mcr-repo-mirror <gh|glab> NAMESPACE [--apply]` | Preview or configure a private, push-only promotion mirror on the other provider |
 | `mcr-repo-mirror <gh|glab> del [--apply]` | Preview or remove the local mirror remote; never delete a provider repository |
-| `mcr-repo-sync` | Fetch origin, reconcile the current `mcr/*` branch, publish it without force, and verify the remote |
-| `mcr-branch-push` | Fetch origin, reconcile promotion branches, fast-forward through main/staging/release, then verify the atomic remote push |
+| `mcr-repo-sync` | Fetch origin, reconcile the current `mcr/*` branch with no protected paths, publish it without force, and verify the remote |
+| `mcr-branch-push` | Fetch origin, reconcile promotion branches with no protected paths, fast-forward through main/staging/release, then verify the atomic remote push |
 | `mcr-tag-create TAG`, `mcr-tag-push TAG` | Create annotated local tag, or explicitly push that tag |
 | `mcr-tag-delete TAG`, `mcr-tag-show` | Local tag deletion, or listing; no remote deletion |
 | `mcr-fork-sync` | Fetch origin, refresh local `gitlab/mcr/main` from `origin/gitlab/mcr/main`, protected-sync it into `mcr/main`, and push the verified result to origin |

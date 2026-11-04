@@ -32,6 +32,12 @@ FEATURE_BRANCHES = ('mcr/feature/initial',)
 # Branch initialization, tracking repair and publication cover every entry.
 MANAGED_BRANCHES = BRANCHES + FEATURE_BRANCHES
 MAX_ENTRIES = 200000
+WORKFLOW_FORKS = 'forks'
+WORKFLOW_SALSA = 'salsa'
+WORKFLOW_NONE = None
+
+def workflow_label(workflow: str | None) -> str:
+    return workflow if workflow is not None else 'unprotected'
 
 class GitOpsError(ValueError):
     pass
@@ -85,8 +91,12 @@ def git(*args: str, cwd: Path | None = None, data: bytes | None = None,
             if stream is not None:
                 stream.close()
 
-def load_patterns(path: Path, workflow: str) -> list[str]:
+def load_patterns(path: Path, workflow: str | None) -> list[str]:
     """Parse data, never source/eval a dotenv or import repository-local policy."""
+    if workflow is None:
+        return []
+    if workflow not in (WORKFLOW_FORKS, WORKFLOW_SALSA):
+        raise GitOpsError('unknown protected-path workflow')
     if path.is_symlink() or path.resolve() != path.absolute():
         raise GitOpsError('gitops.env must have a direct, nonsymlinked path')
     fd = os.open(path, os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK | os.O_CLOEXEC)
@@ -115,7 +125,7 @@ def load_patterns(path: Path, workflow: str) -> list[str]:
         values[key] = words[0]
     if set(values) != set(KEYS):
         raise GitOpsError('gitops.env must define both protected-path lists')
-    patterns = shlex.split(values[KEYS[workflow == 'salsa']], posix=True)
+    patterns = shlex.split(values[KEYS[workflow == WORKFLOW_SALSA]], posix=True)
     for pattern in patterns:
         if (not pattern or pattern.startswith(('/', '-', ':')) or '\\' in pattern
                 or any(ord(c) < 32 or ord(c) == 127 for c in pattern)
@@ -232,7 +242,7 @@ def source_ref(root: Path, specified: str | None) -> str:
             return name
     raise GitOpsError('origin has no supported upstream mirror branch (gitlab/mcr/main, gitlab/main or gitlab/master)')
 
-def sync(root: Path, workflow: str, source: str | None, apply: bool,
+def sync(root: Path, workflow: str | None, source: str | None, apply: bool,
          fetch: bool, config: Path, *, locked_common: Path | None = None) -> None:
     patterns = load_patterns(config, workflow)
     with (repository_lock(root) if locked_common is None else contextlib.nullcontext(locked_common)) as common:
@@ -244,12 +254,11 @@ def sync(root: Path, workflow: str, source: str | None, apply: bool,
             fetch_origin(root)
         source = source_ref(root, source)
         old, other = resolve('HEAD', root), resolve(source, root)
-        report_commit(root, old, 'Protected destination before sync')
+        report_commit(root, old, f'{workflow_label(workflow).capitalize()} destination before sync')
         report_commit(root, other, 'Source commit')
         local, upstream = tree(old, root), tree(other, root)
-        # The destination branch owns the protected paths. The source mirror
-        # can update only unprotected paths, including when source is the
-        # refreshed local gitlab/mcr/main branch.
+        # A selected policy lets the destination retain protected paths. The
+        # unprotected workflow copies the complete source tree.
         desired = desired_tree(local, upstream, patterns)
         has_submodules = any(value[0] == '160000' for value in (*local.values(), *desired.values()))
         has_submodule_config = '.gitmodules' in local or '.gitmodules' in desired
@@ -260,7 +269,8 @@ def sync(root: Path, workflow: str, source: str | None, apply: bool,
                 raise GitOpsError('an ignored local path would be overwritten; move it before syncing')
         kept = sum(1 for name in local.keys() | upstream.keys()
                    if protected(name, patterns) and local.get(name) != upstream.get(name))
-        print(terminal_text(f'{workflow}: {source} -> {branch}; {len(changes)} changed paths; {kept} protected differences'))
+        print(terminal_text(f'{workflow_label(workflow)}: {source} -> {branch}; '
+                            f'{len(changes)} changed paths; {kept} protected differences'))
         for name in changes[:100]:
             action = 'A' if name not in local else 'D' if name not in desired else 'M'
             print(f'  {action} {name!r}')
@@ -282,8 +292,11 @@ def sync(root: Path, workflow: str, source: str | None, apply: bool,
             git('update-index', '-z', '--index-info', cwd=root, extra=extra, data=records)
             new_tree = git('write-tree', cwd=root, extra=extra).decode().strip()
             parents = ['-p', old] + ([] if ancestry == other else ['-p', other])
+            subject = (f'Protected {workflow} sync from {source}' if workflow is not None
+                       else f'Full tree sync from {source}')
+            policy = f'Policy: {config}' if workflow is not None else 'Policy: none'
             commit = git('commit-tree', new_tree, *parents, cwd=root,
-                         data=f'Protected {workflow} sync from {source}\n\nPolicy: {config}\n'.encode()).decode().strip()
+                         data=f'{subject}\n\n{policy}\n'.encode()).decode().strip()
         # Recheck after potentially slow construction. Never reset --hard or
         # force-push. Git's ff-only merge handles worktree/index/ref locking.
         require_clean(root)
@@ -300,8 +313,8 @@ def sync(root: Path, workflow: str, source: str | None, apply: bool,
             git('submodule', 'update', '--init', '--checkout', '--recursive', '--jobs=4', cwd=root)
         if tree('HEAD', root) != desired:
             raise GitOpsError('post-sync tree verification failed; recovery ref was retained')
-        report_commit(root, 'HEAD', 'Protected sync result')
-        print('Protected sync committed; destination tree verified.')
+        report_commit(root, 'HEAD', f'{workflow_label(workflow).capitalize()} sync result')
+        print(f'{workflow_label(workflow).capitalize()} sync committed; destination tree verified.')
 
 def validate_branch(name: str, root: Path) -> None:
     if not name.startswith('mcr/') or name.startswith('-'):
@@ -370,7 +383,7 @@ def refresh_local_mirror(root: Path, branch: str = 'gitlab/mcr/main') -> str:
     return remote_oid
 
 
-def ensure_managed_branches(root: Path, workflow: str, config: Path, common: Path) -> None:
+def ensure_managed_branches(root: Path, workflow: str | None, config: Path, common: Path) -> None:
     """Create all four branches and reconcile each existing origin tip."""
     load_patterns(config, workflow)  # Reject invalid policy before any branch mutation.
     require_available_branches(root, MANAGED_BRANCHES)
@@ -383,7 +396,7 @@ def ensure_managed_branches(root: Path, workflow: str, config: Path, common: Pat
         reconcile_origin_branch(root, branch, workflow, config, common)
 
 
-def reconcile_origin_branch(root: Path, branch: str, workflow: str,
+def reconcile_origin_branch(root: Path, branch: str, workflow: str | None,
                             config: Path, common: Path) -> None:
     """Keep local descendants; reconcile a new/divergent origin tip by policy."""
     remote = branch_oid(root, branch, remote=True)
@@ -396,8 +409,8 @@ def reconcile_origin_branch(root: Path, branch: str, workflow: str,
     configure_tracking(root, branch)
 
 
-def workflow_source(root: Path, workflow: str, *, refresh: bool) -> str:
-    if workflow == 'forks':
+def workflow_source(root: Path, workflow: str | None, *, refresh: bool) -> str:
+    if workflow == WORKFLOW_FORKS:
         if refresh:
             return refresh_local_mirror(root)
         source = branch_oid(root, 'gitlab/mcr/main', remote=True)
@@ -429,7 +442,7 @@ def publish_branches(root: Path, branches: tuple[str, ...]) -> None:
     print('Origin publication verified for: ' + ', '.join(branches))
 
 
-def initialize_managed_branches(root: Path, workflow: str, config: Path,
+def initialize_managed_branches(root: Path, workflow: str | None, config: Path,
                                 *, synchronize_mirror: bool = False) -> None:
     """Repair local/remote branches and tracking; finish on mcr/main."""
     with repository_lock(root) as common:
@@ -446,8 +459,8 @@ def initialize_managed_branches(root: Path, workflow: str, config: Path,
         publish_branches(root, MANAGED_BRANCHES)
 
 
-def synchronize_main(root: Path, workflow: str, config: Path) -> None:
-    """Zero-argument origin -> local mirror -> protected mcr/main sync."""
+def synchronize_main(root: Path, workflow: str | None, config: Path) -> None:
+    """Zero-argument origin -> local mirror -> selected mcr/main sync."""
     with repository_lock(root) as common:
         require_clean(root)
         load_patterns(config, workflow)
@@ -457,39 +470,44 @@ def synchronize_main(root: Path, workflow: str, config: Path) -> None:
         git('switch', '--no-overwrite-ignore', 'mcr/main', cwd=root)
         sync(root, workflow, source, True, False, config, locked_common=common)
         publish_branches(root, MANAGED_BRANCHES)
-        print('Synchronized local mcr/main; protected paths came only from mcr/main.')
+        if workflow is None:
+            print('Synchronized local mcr/main; no protected paths were applied.')
+        else:
+            print('Synchronized local mcr/main; protected paths came only from mcr/main.')
 
 
-def create_managed_branch(root: Path, name: str, config: Path) -> None:
+def create_managed_branch(root: Path, name: str, config: Path,
+                          workflow: str | None = WORKFLOW_NONE) -> None:
     """Create or repair the named branch without requiring an earlier init."""
     validate_branch(name, root)
     with repository_lock(root) as common:
         require_clean(root)
         fetch_origin(root)
-        ensure_managed_branches(root, 'forks', config, common)
+        ensure_managed_branches(root, workflow, config, common)
         require_available_branches(root, (name,))
         if branch_oid(root, name) is None:
             base = branch_oid(root, name, remote=True) or resolve('refs/heads/mcr/main', root)
             git('branch', '--', name, base, cwd=root)
-        reconcile_origin_branch(root, name, 'forks', config, common)
+        reconcile_origin_branch(root, name, workflow, config, common)
         git('switch', '--no-overwrite-ignore', name, cwd=root)
         publish_branches(root, tuple(dict.fromkeys((*MANAGED_BRANCHES, name))))
 
 
-def promote_managed_branches(root: Path, config: Path) -> None:
+def promote_managed_branches(root: Path, config: Path,
+                             workflow: str | None = WORKFLOW_NONE) -> None:
     """Repair origin inputs and promote the current source by protected sync."""
     with repository_lock(root) as common:
         require_clean(root)
         original = current_branch(root)
         validate_branch(original, root)
         fetch_origin(root)
-        ensure_managed_branches(root, 'forks', config, common)
-        reconcile_origin_branch(root, original, 'forks', config, common)
+        ensure_managed_branches(root, workflow, config, common)
+        reconcile_origin_branch(root, original, workflow, config, common)
         source = resolve('refs/heads/' + original, root)
         try:
             for branch in BRANCHES:
                 git('switch', '--no-overwrite-ignore', branch, cwd=root)
-                sync(root, 'forks', source, True, False, config, locked_common=common)
+                sync(root, workflow, source, True, False, config, locked_common=common)
                 source = resolve('HEAD', root)
             publish_branches(root, tuple(dict.fromkeys((*MANAGED_BRANCHES, original))))
             push_configured_mirrors(root)
@@ -498,14 +516,15 @@ def promote_managed_branches(root: Path, config: Path) -> None:
                 git('switch', '--no-overwrite-ignore', original, cwd=root)
 
 
-def push_current_branch(root: Path, config: Path) -> None:
+def push_current_branch(root: Path, config: Path,
+                        workflow: str | None = WORKFLOW_NONE) -> None:
     with repository_lock(root) as common:
         require_clean(root)
         original = current_branch(root)
         validate_branch(original, root)
         fetch_origin(root)
-        ensure_managed_branches(root, 'forks', config, common)
-        reconcile_origin_branch(root, original, 'forks', config, common)
+        ensure_managed_branches(root, workflow, config, common)
+        reconcile_origin_branch(root, original, workflow, config, common)
         git('switch', '--no-overwrite-ignore', original, cwd=root)
         publish_branches(root, tuple(dict.fromkeys((*MANAGED_BRANCHES, original))))
         push_configured_mirrors(root)
@@ -538,7 +557,7 @@ def patch_check(root: Path, *, locked_common: Path | None = None) -> None:
             count += 1
         print(f'{count} patches apply sequentially to HEAD in an isolated index; worktree unchanged.')
 
-def sync_chain(root: Path, workflow: str, source: str | None, apply: bool,
+def sync_chain(root: Path, workflow: str | None, source: str | None, apply: bool,
                fetch: bool, config: Path, *, push: bool = False, patches: bool = False) -> None:
     """Origin repair, then mirror -> main -> staging -> release by policy."""
     patterns = load_patterns(config, workflow)
@@ -560,7 +579,8 @@ def sync_chain(root: Path, workflow: str, source: str | None, apply: bool,
             before = tree(tip, root)
             after = desired_tree(before, planned, patterns)
             changes = sum(before.get(name) != after.get(name) for name in before.keys() | after.keys())
-            print(terminal_text(f'{workflow}: {previous} -> {branch}; {changes} planned changed paths'))
+            print(terminal_text(f'{workflow_label(workflow)}: {previous} -> {branch}; '
+                                f'{changes} planned changed paths'))
             planned, previous = after, branch
         if not apply:
             print('Preview only; local branches, ordinary index and worktree are unchanged.')
@@ -1433,7 +1453,11 @@ def _main(argv: list[str] | None = None) -> int:
             raise GitOpsError(f'{command} takes no arguments; origin fetch and application are automatic')
         match = re.fullmatch(r'mcr-(fork|salsa)-(sync|cicd|update|verify-protected-sync|push|check|test)', command)
         if command == 'sync' or match:
-            workflow = 'salsa' if match and match[1] == 'salsa' else 'forks'
+            # Only explicit mcr-fork-* and mcr-salsa-* commands select a
+            # protected-path policy. The generic sync command is a full tree
+            # synchronization and deliberately protects no relative paths.
+            workflow = (WORKFLOW_NONE if command == 'sync' else
+                        WORKFLOW_SALSA if match[1] == 'salsa' else WORKFLOW_FORKS)
             if match and match[2] in ('check', 'test'):
                 patch_check(root); return 0
             if command == 'sync' or (match and match[2] == 'sync'):
@@ -1466,7 +1490,8 @@ def _main(argv: list[str] | None = None) -> int:
                 raise GitOpsError('init takes no arguments; branch repair and publication are automatic')
             initialize_managed_branches(
                 root,
-                'salsa' if command == 'salsa-init' else 'forks',
+                (WORKFLOW_SALSA if command == 'salsa-init' else
+                 WORKFLOW_FORKS if command == 'fork-init' else WORKFLOW_NONE),
                 config,
                 synchronize_mirror=command != 'branch-init',
             )
