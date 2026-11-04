@@ -23,6 +23,9 @@ EXCLUDED_DIRS = {'tests', '__pycache__', '.git', '.pytest_cache'}
 PRIVATE_INPUT_NAMES = {'preseed.env', 'git_ed25519', 'git_ed25519.pub', 'id_git_ed25519'}
 PRIVATE_KEY_HEADER = re.compile(rb'-----BEGIN (?:OPENSSH |RSA |EC |DSA |ENCRYPTED )?PRIVATE KEY-----')
 SAFE_PATH = re.compile(r'[A-Za-z0-9_./@+-]+\Z')
+ALLOWED_PAYLOAD_PATHS = {
+    'hooks/target/etc/skel-desktop/.config/vivaldi/Local State',
+}
 
 # The publication helper performs only bounded writes to these three products.
 sys.path.insert(0, str(ROOT / 'tools'))
@@ -43,7 +46,8 @@ def payload_files() -> list[Path]:
             raise ValueError(f'symlinks cannot be published: {rel}')
         if not p.is_file():
             continue
-        if not SAFE_PATH.fullmatch(rel.as_posix()):
+        relative_name = rel.as_posix()
+        if not SAFE_PATH.fullmatch(relative_name) and relative_name not in ALLOWED_PAYLOAD_PATHS:
             raise ValueError(f'unsupported payload path: {rel}')
         if p.stat().st_mode & 0o111:
             raise ValueError(f'source file must not be executable: {rel}')

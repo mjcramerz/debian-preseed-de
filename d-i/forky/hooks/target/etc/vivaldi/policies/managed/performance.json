@@ -1,1 +1,25 @@
-{}
+{
+  "BatterySaverModeAvailability": 1,
+  "BrowserLabsEnabled": false,
+  "ComponentUpdatesEnabled": true,
+  "EnableMediaRouter": false,
+  "HardwareAccelerationModeEnabled": true,
+  "HighEfficiencyModeEnabled": true,
+  "HistoryClustersVisible": false,
+  "IntensiveWakeUpThrottlingEnabled": true,
+  "LiveCaptionEnabled": false,
+  "LiveTranslateEnabled": false,
+  "MediaRecommendationsEnabled": false,
+  "MemorySaverModeSavings": 2,
+  "NTPCardsVisible": false,
+  "NetworkServiceSandboxEnabled": true,
+  "OriginAgentClusterDefaultEnabled": true,
+  "OriginKeyedProcessesEnabled": true,
+  "PrefetchWithServiceWorkerEnabled": false,
+  "PromotionalTabsEnabled": false,
+  "PromotionsEnabled": false,
+  "RestrictBackgroundFetchFromServiceWorkerEnabled": true,
+  "ServiceWorkerAutoPreloadEnabled": true,
+  "ShoppingListEnabled": false,
+  "SitePerProcess": true
+}

@@ -854,6 +854,7 @@ test -x /usr/bin/update-mime-database
   desktop_stage_role_asset etc/skel-desktop/.config/chromium/Default/Preferences /etc/skel-desktop/.config/chromium/Default/Preferences 0600
   desktop_stage_role_asset etc/skel-desktop/.config/microsoft-edge/Default/Preferences /etc/skel-desktop/.config/microsoft-edge/Default/Preferences 0600
   desktop_stage_role_asset etc/skel-desktop/.config/obsidian/obsidian.json /etc/skel-desktop/.config/obsidian/obsidian.json 0600
+  desktop_stage_role_asset "etc/skel-desktop/.config/vivaldi/Local State" "/etc/skel-desktop/.config/vivaldi/Local State" 0600
   desktop_stage_role_asset etc/skel-desktop/.config/vivaldi/Default/Preferences /etc/skel-desktop/.config/vivaldi/Default/Preferences 0600
   # The sandbox session seeds missing Vivaldi caches from signed vendor data;
   # subsequent cache updates remain owned by the browser.

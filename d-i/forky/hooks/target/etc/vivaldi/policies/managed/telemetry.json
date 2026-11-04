@@ -1,8 +1,22 @@
 {
+  "BrowserNetworkTimeQueriesEnabled": false,
   "CloudReportingEnabled": false,
+  "DomainReliabilityAllowed": false,
+  "FeedbackSurveysEnabled": false,
   "MetricsReportingEnabled": false,
+  "PrivacySandboxAdMeasurementEnabled": false,
+  "PrivacySandboxAdTopicsEnabled": false,
+  "PrivacySandboxPromptEnabled": false,
+  "PrivacySandboxSiteEnabledAdsEnabled": false,
+  "RelatedWebsiteSetsEnabled": false,
+  "ReportExtensionsAndPluginsData": false,
+  "ReportMachineIDData": false,
+  "ReportPolicyData": false,
+  "ReportUserIDData": false,
+  "ReportVersionData": false,
   "SafeBrowsingExtendedReportingEnabled": false,
   "SafeBrowsingProtectionLevel": 1,
+  "SafeBrowsingSurveysEnabled": false,
   "SpellCheckServiceEnabled": false,
   "UrlKeyedAnonymizedDataCollectionEnabled": false
 }

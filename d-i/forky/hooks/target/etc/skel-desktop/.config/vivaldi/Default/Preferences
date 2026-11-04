@@ -1,13 +1,117 @@
 {
-  "browser": {
-    "custom_chrome_frame": false
+  "autofill": {
+    "credit_card_enabled": false,
+    "profile_enabled": false
   },
+  "browser": {
+    "custom_chrome_frame": false,
+    "default_browser_setting_enabled": false,
+    "enable_spellchecking": true,
+    "show_home_button": false
+  },
+  "credentials_enable_service": false,
   "enable_do_not_track": false,
+  "extensions": {
+    "ui": {
+      "developer_mode": true
+    }
+  },
+  "hardware_acceleration_mode": {
+    "enabled": true
+  },
+  "import_autofill_form_data": false,
+  "import_bookmarks": false,
+  "import_history": false,
+  "import_home_page": false,
+  "import_saved_passwords": false,
+  "import_search_engine": false,
+  "net": {
+    "network_prediction_options": 2
+  },
   "profile": {
     "default_content_setting_values": {
+      "autoplay": 2,
+      "automatic_downloads": 2,
+      "bluetooth_guard": 2,
+      "file_system_read": 2,
+      "file_system_write": 2,
+      "geolocation": 0,
+      "idle_detection": 2,
+      "media_stream_camera": 0,
+      "media_stream_mic": 0,
+      "midi_sysex": 2,
       "notifications": 2,
       "popups": 2,
-      "sensors": 2
+      "sensors": 2,
+      "serial_guard": 2,
+      "usb_guard": 2,
+      "window_management": 2
+    },
+    "password_manager_enabled": false
+  },
+  "safebrowsing": {
+    "enabled": true,
+    "extended_reporting_enabled": false
+  },
+  "search": {
+    "suggest_enabled": false
+  },
+  "session": {
+    "restore_on_startup": 4,
+    "startup_urls": []
+  },
+  "signin": {
+    "allowed": true
+  },
+  "spellcheck": {
+    "use_spelling_service": false
+  },
+  "translate": {
+    "enabled": true
+  },
+  "vivaldi": {
+    "address_bar": {
+      "omnibox": {
+        "show_sync_tabs": true
+      }
+    },
+    "bookmarks": {
+      "bar": {
+        "visible": true
+      }
+    },
+    "mail": {
+      "notifications": false
+    },
+    "panels": {
+      "lazy_load": true
+    },
+    "privacy": {
+      "ad_blocker": {
+        "enable_document_blocking": true
+      },
+      "google_component_extensions": {
+        "hangout_services": false,
+        "web_store": false
+      }
+    },
+    "tabs": {
+      "always_load_pinned_after_restore": false,
+      "defer_loading_after_restore": true,
+      "thumbnails": false,
+      "tooltip": false,
+      "unread": false
+    },
+    "theme": {
+      "use_animation": false
+    },
+    "webpages": {
+      "smooth_scrolling": false
+    }
+  },
+  "webkit": {
+    "webprefs": {
+      "force_dark_mode_enabled": false
     }
   }
 }

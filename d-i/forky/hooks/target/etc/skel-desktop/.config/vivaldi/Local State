@@ -1,0 +1,38 @@
+{
+  "browser": {
+    "enabled_labs_experiments": [
+      "enable-accelerated-video-decode",
+      "enable-gpu-rasterization@1",
+      "enable-parallel-downloading",
+      "enable-zero-copy",
+      "use-persistent-cache-for-code-cache"
+    ],
+    "first_run_finished": true
+  },
+  "hardware_acceleration_mode": {
+    "enabled": true
+  },
+  "hardware_acceleration_mode_previous": true,
+  "performance_tuning": {
+    "high_efficiency_mode": {
+      "aggressiveness": 2,
+      "state": 2,
+      "time_before_discard_in_minutes": 60
+    }
+  },
+  "profile": {
+    "info_cache": {
+      "Default": {
+        "background_apps": false,
+        "is_ephemeral": false,
+        "name": "Default"
+      }
+    },
+    "last_active_profiles": [
+      "Default"
+    ],
+    "profiles_order": [
+      "Default"
+    ]
+  }
+}
