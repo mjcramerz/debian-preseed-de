@@ -27,6 +27,10 @@ COMPOSITOR = "labwc-compositor.service"
 # Only repository-managed guest shutdown hooks. Leave their engines and both
 # D-Bus brokers alive while ExecStop completes; do not enumerate/stop the host.
 GUEST_STOP_UNITS = ("podman-devops-restart.service", "incus-startup.service")
+# The loader owns the profile-selected scheduler when SCX is enabled. Stop it
+# before the direct backend while PID 1 and the system D-Bus are still alive;
+# the installed unit drop-ins also encode this transaction ordering.
+SCX_STOP_UNITS = ("scx_loader.service", "scx.service")
 SHARING_CONFIG = Path("/etc/network-sharing/config.json")
 ZRAM_WORK_UNITS = ("zram-idle-writeback.timer", "zram-cold-tier.timer",
                    "zram-writebackd.service", "zram-writeback.service")
@@ -705,6 +709,11 @@ class Worker:
         finally:
             if self.shutdown_deadline is not None:
                 self.shutdown_deadline += time.monotonic() - started
+        # Both Waybar and gtkgreet power/reboot wrappers converge here. Drain
+        # the loader first, then the direct scheduler backend, before stopping
+        # greetd and the user manager. Missing SCX units are harmless for
+        # profiles that do not opt into sched_ext.
+        self.best_effort("sched-ext backends", lambda: self.stop_optional_units(SCX_STOP_UNITS))
         self.best_effort("greeter", lambda: self.shutdown_run(
             ["/usr/bin/systemctl", "--no-block", "stop", "greetd.service"]))
         # Stop the manager synchronously before logind discards its session.

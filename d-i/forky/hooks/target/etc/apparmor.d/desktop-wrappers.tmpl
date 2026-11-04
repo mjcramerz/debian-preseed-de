@@ -2982,6 +2982,9 @@ profile labwc-help-ui /usr/local/libexec/labwc-help-gtk flags=(attach_disconnect
   owner @{HOME}/ r,
   owner @{HOME}/.config/fontconfig/{,**} r,
   owner @{HOME}/.config/gtk-4.0/{,**} r,
+  # Help's GTK preview follows the managed Waycal stylesheet when it opens
+  # calendar documentation; keep the same-owner read narrow and read-only.
+  owner @{HOME}/.config/waycal/{,style.css} r,
   owner @{HOME}/.local/share/fonts/{,**} r,
   owner @{HOME}/.local/share/icons/{,**} r,
   owner @{HOME}/.local/ r,

@@ -7,7 +7,7 @@
 * the menu opens while the bar buttons themselves retain class-specific sizes.
 */
 
-menu {
+menu { -gtk-icon-theme: "__THEME_WAYBAR_GTK_ICON_THEME__";
   -gtk-icon-style: regular;
   background: __THEME_WAYBAR_DROPDOWN_MENU_NORMAL_BACKGROUND_COLOR__;
   color: __THEME_WAYBAR_DROPDOWN_MENU_NORMAL_TEXT_COLOR__;
@@ -18,7 +18,7 @@ menu {
   box-shadow: __INSTALLER_LABWC_WAYBAR_SHARED_MENU_SHADOW__ __THEME_WAYBAR_DROPDOWN_MENU_NORMAL_SHADOW_COLOR__;
 }
 
-menuitem {
+menuitem { -gtk-icon-theme: "__THEME_WAYBAR_GTK_ICON_THEME__";
   font-weight: __THEME_WAYBAR_FONT_WEIGHT_NORMAL__;
   padding: __INSTALLER_LABWC_WAYBAR_SHARED_MENU_ITEM_PADDING_Y__px __INSTALLER_LABWC_WAYBAR_SHARED_MENU_ITEM_PADDING_X__px;
   border-radius: __INSTALLER_LABWC_WAYBAR_SHARED_MENU_ITEM_RADIUS__px;
@@ -30,7 +30,7 @@ menuitem label {
   font-size: __INSTALLER_LABWC_WAYBAR_SHARED_MENU_FONT_SIZE__px;
 }
 
-menuitem image {
+menuitem image { -gtk-icon-theme: "__THEME_WAYBAR_GTK_ICON_THEME__";
   color: __THEME_WAYBAR_DROPDOWN_MENU_NORMAL_ICON_COLOR__;
   min-width: __INSTALLER_LABWC_WAYBAR_SHARED_MENU_ICON_WIDTH__px;
   min-height: __INSTALLER_LABWC_WAYBAR_SHARED_MENU_ICON_HEIGHT__px;
@@ -53,7 +53,7 @@ menuitem:selected:not(:disabled) image {
   color: __THEME_WAYBAR_DROPDOWN_MENU_HOVER_ICON_COLOR__;
 }
 
-menuitem arrow {
+menuitem arrow { -gtk-icon-theme: "__THEME_WAYBAR_GTK_ICON_THEME__";
   color: __THEME_WAYBAR_DROPDOWN_SUBMENU_ARROW_NORMAL_ICON_COLOR__;
   min-width: __INSTALLER_LABWC_WAYBAR_SHARED_MENU_ARROW_SIZE__px;
   min-height: __INSTALLER_LABWC_WAYBAR_SHARED_MENU_ARROW_SIZE__px;
