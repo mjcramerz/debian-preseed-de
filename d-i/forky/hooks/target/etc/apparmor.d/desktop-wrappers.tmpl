@@ -757,7 +757,6 @@ profile labwc-computer-management /usr/local/bin/labwc-computer-management flags
   #include <abstractions/wrapper-python>
   /usr/local/bin/labwc-terminal rPx -> labwc-terminal,
   /usr/local/bin/labwc-computer-management rix,
-  /usr/local/bin/labwc-help rPx -> labwc-help,
   /usr/bin/{cat,id,stat} rix,
   /usr/bin/pavucontrol pux,
   /usr/bin/systemctl pux,
@@ -1976,7 +1975,6 @@ profile labwc-maintenance-menu /usr/local/bin/labwc-maintenance-menu flags=(atta
   #include <abstractions/wrapper-python>
 
   /usr/local/bin/labwc-maintenance-menu rix,
-  /usr/local/bin/labwc-help rPx -> labwc-help,
   /usr/local/lib/python3.14/dist-packages/labwc_desktop_runtime.py r,
   /usr/bin/systemctl pux,
   /usr/{bin,sbin}/ip pux,
@@ -3046,7 +3044,6 @@ profile labwc-network-control-menu /usr/local/bin/labwc-network-control-menu fla
   #include <abstractions/wrapper-python>
 
   /usr/local/bin/labwc-network-control-menu rix,
-  /usr/local/bin/labwc-help rPx -> labwc-help,
   /usr/local/lib/python3.14/dist-packages/labwc_desktop_runtime.py r,
   /usr/bin/nmcli pux,
   /usr/local/bin/labwc-fuzzel rPx -> labwc-fuzzel,

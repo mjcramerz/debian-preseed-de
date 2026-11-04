@@ -66,6 +66,7 @@ profile tomat /{usr/bin/tomat,usr/local/libexec/labwc-tomat-hook} flags=(attach_
   /etc/{group,passwd,nsswitch.conf,localtime} r,
   /usr/share/zoneinfo/{,**} r,
   /usr/share/locale/{,**} r,
+  @{sys}/devices/virtual/dmi/id/{bios_vendor,board_vendor,product_name,sys_vendor} r,
   / r,
   /run/ r,
   /run/user/ r,

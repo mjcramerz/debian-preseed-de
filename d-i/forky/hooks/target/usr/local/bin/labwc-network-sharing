@@ -22,7 +22,6 @@ import subprocess
 import sys
 
 PICKER = '/usr/local/bin/labwc-fuzzel'
-HELP = '/usr/local/bin/labwc-help'
 CONFIG = Path('/etc/network-sharing/config.json')
 REPORT = Path('/run/network-sharing/report.json')
 FSTAB = Path('/etc/fstab')
@@ -31,21 +30,8 @@ ACTIONS = (
     'Sharing Status', 'Connect to NFS Server', 'Disconnect from NFS Server',
     'Check Connected NFS Clients', 'Start NFS Server', 'Stop NFS Server',
     'Reload NFS Exports', 'Restart NFS Server', 'Identity Mapping and RPC Diagnostics',
-    'Show Configured Exports', 'Recent NFS Logs', 'Sharing Help',
+    'Show Configured Exports', 'Recent NFS Logs',
 )
-
-
-def open_help(topic: str) -> None:
-    if topic != 'network.sharing':
-        raise ValueError('unsupported network sharing Help topic')
-    try:
-        result = subprocess.run([HELP, '--topic', topic], stdin=subprocess.DEVNULL,
-                                stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
-                                check=False, timeout=120)
-    except subprocess.TimeoutExpired as error:
-        raise RuntimeError('Help launch timed out') from error
-    if result.returncode:
-        raise RuntimeError('Help launch failed')
 
 
 def notify(summary: str, body: str) -> None:
@@ -536,8 +522,6 @@ def action(config: dict, label: str) -> None:
         if result.returncode:
             raise RuntimeError('Cannot read NFS logs: ' + clean(result.stdout, 1600))
         show('Recent NFS Logs', result.stdout.splitlines() or ['No readable entries. Journal access follows the existing account group policy.'])
-    elif label == 'Sharing Help':
-        open_help('network.sharing')
     else:
         raise ValueError('unknown network sharing action')
 

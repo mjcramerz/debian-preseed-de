@@ -75,7 +75,7 @@ WAYLAND_COMPAT_RUNTIME_ROOT = "/opt/xwayland"
 APPS = {
     "help": {
         "exec": "/usr/local/libexec/labwc-help-gtk",
-        "env": {"GDK_BACKEND": "wayland", "GTK_A11Y": "atspi", "NO_AT_BRIDGE": "0"},
+        "env": {"GDK_BACKEND": "wayland", "GTK_A11Y": "atspi", "NO_AT_BRIDGE": "0", "GTK_CSD": "0"},
         "args": [],
         "bind_workspace": False,
         "pure_privacy": False,

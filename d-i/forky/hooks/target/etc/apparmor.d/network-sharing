@@ -10,7 +10,6 @@ profile labwc-network-sharing /usr/local/bin/{labwc-network-sharing,nfsmnt,filen
   /usr/local/bin/nfsmnt r,
   /usr/local/bin/filenmnt r,
   /usr/local/bin/labwc-network-sharing rix,
-  /usr/local/bin/labwc-help rPx -> labwc-help,
   / r,
   /etc/ r,
   /etc/network-sharing/ r,

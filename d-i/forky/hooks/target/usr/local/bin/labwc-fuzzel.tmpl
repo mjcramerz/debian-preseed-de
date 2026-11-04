@@ -446,16 +446,12 @@ def icon_for(label: str, menu_prompt: str) -> str:
         return "__THEME_FUZZEL_COMPUTER_MANAGEMENT_MENU_ACTION_SHOW_CONFIGURED_EXPORTS_ICON_NAME__"
     if label == "Recent NFS Logs":
         return "__THEME_FUZZEL_COMPUTER_MANAGEMENT_MENU_ACTION_RECENT_NFS_LOGS_ICON_NAME__"
-    if label == "Sharing Help":
-        return "__THEME_FUZZEL_COMPUTER_MANAGEMENT_MENU_ACTION_SHARING_HELP_ICON_NAME__"
     if label == "Continue":
         return "__THEME_FUZZEL_COMPUTER_MANAGEMENT_MENU_ACTION_CONTINUE_ICON_NAME__"
     if label == "Remote Desktop":
         return "__THEME_FUZZEL_COMPUTER_MANAGEMENT_MENU_ACTION_REMOTE_DESKTOP_ICON_NAME__"
     if label == "Desktop Appearance":
         return "__THEME_FUZZEL_COMPUTER_MANAGEMENT_MENU_CATEGORY_DEVICES_DESKTOP_ICON_NAME__"
-    if label == "Display Help":
-        return "__THEME_FUZZEL_MENU_ACTION_HELP_ICON_NAME__"
     if label == "Swaylock Themes":
         return "__THEME_FUZZEL_COMPUTER_MANAGEMENT_MENU_FALLBACK_SYSTEM_LOCK_SCREEN_ICON_NAME__"
     if label == "Displays & Layout":
@@ -584,7 +580,7 @@ def icon_for(label: str, menu_prompt: str) -> str:
         return "__THEME_FUZZEL_COMPUTER_MANAGEMENT_MENU_ACTION_CANCEL_ICON_NAME__"
     if label == "Exit":
         return "__THEME_FUZZEL_COMPUTER_MANAGEMENT_MENU_ACTION_EXIT_ICON_NAME__"
-    if label == "Help"  or  label == "Open Maintenance Help":
+    if label == "Help":
         return "__THEME_FUZZEL_MENU_ACTION_HELP_ICON_NAME__"
     if label == "New Coding Session"  or  label == "Resume Last Session"  or  label == "Implement Task…"  or  label == "Ask Llama…"  or  label == "New Chat"  or  label == "Resume Last Chat"  or  label == "Change Model…"  or  label == "Download New Model…"  or  label == "Push-to-Talk"  or  label == "Toggle Dictation"  or  label == "Transcribe File…"  or  label == "Transcribe Last Recording"  or  label == "Live Captions"  or  label == "Voice Note":
         return "__THEME_FUZZEL_COMPUTER_MANAGEMENT_MENU_ACTION_NEW_CODING_SESSION_ICON_NAME__"
@@ -1106,7 +1102,8 @@ def invoke(options: Options, argv: list[str], root: Path) -> int:
             # their visible labels, preserving the original protocol bytes.
             # Text entry, confirmation and NUL-separated protocols stay intact.
             help_offered = False
-            if (not options.nul_delimited and not options.power_confirmation
+            if (options.scope != 'computer-management'
+                    and not options.nul_delimited and not options.power_confirmation
                     and os.environ.get('LABWC_MENU_INPUT_MODE') != 'text'
                     and any(row.partition(b'\0')[0] for row in rows)):
                 help_offered = any(row.partition(b'\0')[0] == b'Help' for row in rows)
@@ -1144,7 +1141,7 @@ def invoke(options: Options, argv: list[str], root: Path) -> int:
             if status == 0:
                 chosen = selected_row(selection, nul_delimited=options.nul_delimited,
                                       managed=managed)
-                if help_offered and chosen == b'Help':
+                if options.scope != 'computer-management' and help_offered and chosen == b'Help':
                     launch = subprocess.run(
                         [HELP_LAUNCHER, '--topic', help_topic(options.prompt)],
                         stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL,

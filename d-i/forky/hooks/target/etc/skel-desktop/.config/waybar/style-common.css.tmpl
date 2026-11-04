@@ -41,6 +41,19 @@ window#waybar.external {
   border-radius: __INSTALLER_LABWC_WAYBAR_EXTERNAL_PANEL_RADIUS__px;
 }
 
+/* Keep the panel frame above every module background. Waybar places all
+ * modules in one child box; without this inset, a full-height drawer or
+ * workspace group can paint over the panel border at the output edges. */
+window#waybar.internal > box {
+  margin: __INSTALLER_LABWC_WAYBAR_INTERNAL_BORDER_WIDTH__px;
+  border-radius: __INSTALLER_LABWC_WAYBAR_INTERNAL_PANEL_RADIUS__px;
+}
+
+window#waybar.external > box {
+  margin: __INSTALLER_LABWC_WAYBAR_EXTERNAL_BORDER_WIDTH__px;
+  border-radius: __INSTALLER_LABWC_WAYBAR_EXTERNAL_PANEL_RADIUS__px;
+}
+
 tooltip {
   background: __THEME_WAYBAR_TOOLTIP_NORMAL_BACKGROUND_COLOR__;
   border-style: __THEME_WAYBAR_BORDER_STYLE__;
@@ -119,6 +132,8 @@ window#waybar.internal #workspaces,
 window#waybar.external #workspaces {
   margin: 0;
   padding: 0;
+  min-width: 0;
+  min-height: 0;
 }
 
 window#waybar.internal #taskbar,
@@ -130,6 +145,8 @@ window#waybar.internal #apps,
 window#waybar.external #apps {
   margin: 0;
   padding: 0;
+  min-width: 0;
+  min-height: 0;
 }
 
 /* The quick-controls group is one outer control. Its children are compact
@@ -348,8 +365,59 @@ window#waybar.external #custom-power {
   padding-right: __INSTALLER_LABWC_WAYBAR_EXTERNAL_SESSION_BUTTON_PADDING_X__px;
 }
 
+/* Status controls use a slow four-shade outline while hovered. Each edge has
+ * its own theme color, so the Appearance app can tune the complete outline;
+ * the keyframes rotate those shades around the control without changing layout. */
+@keyframes waybar-status-outline-cycle {
+  0% {
+    box-shadow: inset 3px 0 0 0 __THEME_WAYBAR_STATUS_OUTLINE_ANIMATION_LEFT_COLOR__,
+                inset 0 3px 0 0 __THEME_WAYBAR_STATUS_OUTLINE_ANIMATION_TOP_COLOR__,
+                inset -3px 0 0 0 __THEME_WAYBAR_STATUS_OUTLINE_ANIMATION_RIGHT_COLOR__,
+                inset 0 -3px 0 0 __THEME_WAYBAR_STATUS_OUTLINE_ANIMATION_BOTTOM_COLOR__;
+  }
+  25% {
+    box-shadow: inset 3px 0 0 0 __THEME_WAYBAR_STATUS_OUTLINE_ANIMATION_TOP_COLOR__,
+                inset 0 3px 0 0 __THEME_WAYBAR_STATUS_OUTLINE_ANIMATION_RIGHT_COLOR__,
+                inset -3px 0 0 0 __THEME_WAYBAR_STATUS_OUTLINE_ANIMATION_BOTTOM_COLOR__,
+                inset 0 -3px 0 0 __THEME_WAYBAR_STATUS_OUTLINE_ANIMATION_LEFT_COLOR__;
+  }
+  50% {
+    box-shadow: inset 3px 0 0 0 __THEME_WAYBAR_STATUS_OUTLINE_ANIMATION_RIGHT_COLOR__,
+                inset 0 3px 0 0 __THEME_WAYBAR_STATUS_OUTLINE_ANIMATION_BOTTOM_COLOR__,
+                inset -3px 0 0 0 __THEME_WAYBAR_STATUS_OUTLINE_ANIMATION_LEFT_COLOR__,
+                inset 0 -3px 0 0 __THEME_WAYBAR_STATUS_OUTLINE_ANIMATION_TOP_COLOR__;
+  }
+  75% {
+    box-shadow: inset 3px 0 0 0 __THEME_WAYBAR_STATUS_OUTLINE_ANIMATION_BOTTOM_COLOR__,
+                inset 0 3px 0 0 __THEME_WAYBAR_STATUS_OUTLINE_ANIMATION_LEFT_COLOR__,
+                inset -3px 0 0 0 __THEME_WAYBAR_STATUS_OUTLINE_ANIMATION_TOP_COLOR__,
+                inset 0 -3px 0 0 __THEME_WAYBAR_STATUS_OUTLINE_ANIMATION_RIGHT_COLOR__;
+  }
+  100% {
+    box-shadow: inset 3px 0 0 0 __THEME_WAYBAR_STATUS_OUTLINE_ANIMATION_LEFT_COLOR__,
+                inset 0 3px 0 0 __THEME_WAYBAR_STATUS_OUTLINE_ANIMATION_TOP_COLOR__,
+                inset -3px 0 0 0 __THEME_WAYBAR_STATUS_OUTLINE_ANIMATION_RIGHT_COLOR__,
+                inset 0 -3px 0 0 __THEME_WAYBAR_STATUS_OUTLINE_ANIMATION_BOTTOM_COLOR__;
+  }
+}
+
+window#waybar.internal #pulseaudio:hover,
+window#waybar.internal #backlight:hover,
+window#waybar.internal #custom-battery:hover,
+window#waybar.internal #disk:hover,
+window#waybar.internal #cpu:hover,
+window#waybar.internal #memory:hover,
+window#waybar.external #pulseaudio:hover,
+window#waybar.external #backlight:hover,
+window#waybar.external #custom-battery:hover,
+window#waybar.external #disk:hover,
+window#waybar.external #cpu:hover,
+window#waybar.external #memory:hover {
+  animation: waybar-status-outline-cycle __THEME_WAYBAR_STATUS_OUTLINE_ANIMATION_DURATION_MS__ms linear infinite;
+}
+
 /* Waybar/GTK animates every widget's transitionable hover state here. Keep
  * image and gradient swaps discrete; GTK cannot interpolate those values. */
 * {
-  transition: background-color 400ms ease, border-color 400ms ease, color 400ms ease, box-shadow 400ms ease;
+  transition: background-color __THEME_WAYBAR_HOVER_TRANSITION_DURATION_MS__ms ease, border-color __THEME_WAYBAR_HOVER_TRANSITION_DURATION_MS__ms ease, color __THEME_WAYBAR_HOVER_TRANSITION_DURATION_MS__ms ease, box-shadow __THEME_WAYBAR_HOVER_TRANSITION_DURATION_MS__ms ease;
 }

@@ -461,7 +461,7 @@ the existing Fuzzel picker, explicit icons for every action, and the existing op
 fzf backend. Back/cancel is non-destructive. The menu includes Sharing Status,
 Connect/Disconnect, Check Connected NFS Clients, Start/Stop/Restart NFS Server,
 Reload NFS Exports, Identity Mapping and RPC Diagnostics, Show Configured
-Exports, Recent NFS Logs, and Sharing Help.
+Exports, and Recent NFS Logs.
 
 The menu always runs as the desktop user. It never invokes `sudo`, `pkexec`, a
 shell, arbitrary mount arguments, or a user-entered hostname. It only controls

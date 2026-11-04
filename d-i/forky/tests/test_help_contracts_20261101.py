@@ -230,26 +230,22 @@ class HelpStaticContracts(unittest.TestCase):
         maintenance = (TARGET / "usr/local/bin/labwc-maintenance-menu.tmpl").read_text(encoding="utf-8")
         network = (TARGET / "usr/local/bin/labwc-network-control-menu").read_text(encoding="utf-8")
         sharing = (TARGET / "usr/local/bin/labwc-network-sharing").read_text(encoding="utf-8")
-        for source, topic in ((computer, "maintenance.management"),
-                              (appearance, "desktop.appearance"),
-                              (display, "hardware.monitors"),
-                              (maintenance, "maintenance.management"),
-                              (network, "network.connections"),
-                              (sharing, "network.sharing")):
+        for source, topic in ((appearance, "desktop.appearance"),
+                              (display, "hardware.monitors")):
             self.assertIn("/usr/local/bin/labwc-help", source)
             self.assertIn(topic, source)
         self.assertIn("Help launch timed out", appearance)
         self.assertIn("timeout=120", appearance)
-        self.assertIn("Help launch timed out", sharing)
-        self.assertIn("timeout=120", sharing)
-        self.assertIn("'Display Help': (HELP, '--topic', 'hardware.monitors')", computer)
+        for source in (computer, maintenance, network, sharing):
+            self.assertNotIn("/usr/local/bin/labwc-help", source)
+        self.assertNotIn("'Display Help'", computer)
         fuzzel = (TARGET / "usr/local/bin/labwc-fuzzel.tmpl").read_text(encoding="utf-8")
         self.assertIn('label == "Help"', fuzzel)
-        self.assertIn('label == "Display Help"', fuzzel)
+        self.assertIn("options.scope != 'computer-management'", fuzzel)
         apparmor = (TARGET / "etc/apparmor.d/desktop-wrappers.tmpl").read_text(encoding="utf-8")
         self.assertIn("/usr/local/bin/labwc-help rPx -> labwc-help", apparmor)
         self.assertIn("/usr/local/bin/labwc-help rPx -> labwc-help", (TARGET / "etc/apparmor.d/labwc-appearance").read_text(encoding="utf-8"))
-        self.assertIn("/usr/local/bin/labwc-help rPx -> labwc-help", (TARGET / "etc/apparmor.d/network-sharing").read_text(encoding="utf-8"))
+        self.assertNotIn("/usr/local/bin/labwc-help rPx -> labwc-help", (TARGET / "etc/apparmor.d/network-sharing").read_text(encoding="utf-8"))
 
     def test_waybar_popup_help_actions_deep_link_to_their_topics(self):
         dispatcher = (TARGET / "usr/local/bin/labwc-system-menu-action").read_text(encoding="utf-8")
@@ -272,7 +268,7 @@ class HelpStaticContracts(unittest.TestCase):
         self.assertIn("prompt = prompt.rstrip(' :>\\t')", fuzzel)
         self.assertIn("os.environ.get('LABWC_MENU_INPUT_MODE') != 'text'", fuzzel)
         self.assertIn("not options.power_confirmation", fuzzel)
-        self.assertIn("if help_offered and chosen == b'Help':", fuzzel)
+        self.assertIn("if options.scope != 'computer-management' and help_offered and chosen == b'Help':", fuzzel)
         self.assertIn("os.environ.pop('LABWC_MENU_ACTION_WAIT', None)", (TARGET / "usr/local/bin/labwc-help").read_text(encoding="utf-8"))
         self.assertIn("'desktop.tomat'", fuzzel)
         self.assertIn("'desktop.wayscriber'", fuzzel)

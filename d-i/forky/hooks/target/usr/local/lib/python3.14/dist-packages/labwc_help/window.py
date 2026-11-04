@@ -34,6 +34,7 @@ class HelpWindow(Adw.ApplicationWindow):
         self.state_writer = None
         self.index = None
         self.query_source = 0
+        self.category_expanders = {}
         self.toast = Adw.ToastOverlay()
         self.set_content(self.toast)
         self.split = Adw.NavigationSplitView()
@@ -45,6 +46,10 @@ class HelpWindow(Adw.ApplicationWindow):
 
         sidebar = Adw.ToolbarView()
         header = Adw.HeaderBar()
+        # Labwc supplies the server-side frame. Keep Adwaita's title buttons
+        # out of the content header even when the desktop theme enables CSD.
+        header.set_show_start_title_buttons(False)
+        header.set_show_end_title_buttons(False)
         header.set_title_widget(Adw.WindowTitle(title='Help', subtitle='Offline desktop guides'))
         sidebar.add_top_bar(header)
         self.search = Gtk.SearchEntry(placeholder_text='Search all guides', hexpand=True)
@@ -64,6 +69,8 @@ class HelpWindow(Adw.ApplicationWindow):
 
         content = Adw.ToolbarView()
         self.header = Adw.HeaderBar()
+        self.header.set_show_start_title_buttons(False)
+        self.header.set_show_end_title_buttons(False)
         self.header.set_title_widget(Adw.WindowTitle(title='Help'))
         self.back_button = button(self.icons['back'], 'Back (Alt+Left)', lambda _b: self.action('back'))
         self.forward_button = button(self.icons['forward'], 'Forward (Alt+Right)', lambda _b: self.action('forward'))
@@ -146,7 +153,7 @@ class HelpWindow(Adw.ApplicationWindow):
         self.pages.set_visible_child_name('status')
         self.split.set_show_content(True)
 
-    def row(self, title, icon, target, summary='', query=''):
+    def _topic_row(self, parent, title, icon, target, summary='', query=''):
         row = Gtk.ListBoxRow()
         row.target = target
         box = Gtk.Box(spacing=10, margin_start=10, margin_end=10, margin_top=10, margin_bottom=10)
@@ -160,8 +167,39 @@ class HelpWindow(Adw.ApplicationWindow):
             words.append(sub)
         box.append(words)
         row.set_child(box)
-        self.topics.append(row)
+        parent.append(row)
         return row
+
+    def row(self, title, icon, target, summary='', query=''):
+        return self._topic_row(self.topics, title, icon, target, summary, query)
+
+    def category_row(self, cid, category):
+        articles = [article for article in self.catalog.articles.values()
+                    if article.category == cid]
+        outer = Gtk.ListBoxRow(selectable=False, activatable=False)
+        expander = Gtk.Expander(expanded=False)
+        heading = Gtk.Box(spacing=10, hexpand=True)
+        if category['icon']:
+            heading.append(Gtk.Image.new_from_icon_name(category['icon']))
+        heading.append(Gtk.Label(label=category['title'], xalign=0, hexpand=True))
+        count = Gtk.Label(label=f'{len(articles)} guides')
+        count.add_css_class('dim-label')
+        count.add_css_class('caption')
+        heading.append(count)
+        expander.set_label_widget(heading)
+        nested = Gtk.ListBox(selection_mode=Gtk.SelectionMode.SINGLE,
+                             activate_on_single_click=True)
+        nested.add_css_class('navigation-sidebar')
+        nested.set_margin_start(16)
+        nested.connect('row-activated', self.row_activated)
+        for article in sorted(articles, key=lambda item: (item.order, item.title)):
+            self._topic_row(nested, article.title, article.icon, article.id,
+                            article.summary)
+        expander.set_child(nested)
+        outer.set_child(expander)
+        self.topics.append(outer)
+        self.category_expanders[cid] = expander
+        return outer
 
     def clear_sidebar(self):
         while child := self.topics.get_first_child():
@@ -171,17 +209,17 @@ class HelpWindow(Adw.ApplicationWindow):
         if not self.catalog:
             return
         self.clear_sidebar()
+        self.category_expanders = {}
         self.row('Home', self.icons['home'], '')
         self.row('Bookmarks', self.icons['bookmark'], '#bookmarks')
         self.row('Recent guides', self.icons['recents'], '#recents')
         for cid, category in sorted(self.catalog.categories.items(), key=lambda pair: pair[1]['order']):
-            self.row(category['title'], category['icon'], '@' + cid)
-            for article in sorted(self.catalog.articles.values(), key=lambda a: (a.order, a.title)):
-                if article.category == cid:
-                    self.row(article.title, article.icon, article.id)
+            self.category_row(cid, category)
 
     def row_activated(self, _box, row):
-        self.open_topic(row.target)
+        target = getattr(row, 'target', None)
+        if target is not None:
+            self.open_topic(target)
 
     def open_first_result(self):
         row = self.topics.get_row_at_index(0)
@@ -229,11 +267,15 @@ class HelpWindow(Adw.ApplicationWindow):
             self.article_buttons(identifiers)
         elif target.startswith('@') and target[1:] in self.catalog.categories:
             cid = target[1:]
+            if cid in self.category_expanders:
+                self.category_expanders[cid].set_expanded(True)
             self.reader.clear()
             self.reader.append(label(self.catalog.categories[cid]['title'], css='title-1'))
             self.article_buttons([a.id for a in sorted(self.catalog.articles.values(), key=lambda a: a.order) if a.category == cid])
         elif target in self.catalog.articles:
             article = self.catalog.articles[target]
+            if article.category in self.category_expanders:
+                self.category_expanders[article.category].set_expanded(True)
             category = Gtk.Button(label=self.catalog.categories[article.category]['title'], has_frame=False)
             category.connect('clicked', lambda _b: self.open_topic('@' + article.category))
             self.breadcrumb.append(category)
@@ -305,6 +347,7 @@ class HelpWindow(Adw.ApplicationWindow):
             return GLib.SOURCE_REMOVE
         results = self.index.search(query)
         self.clear_sidebar()
+        self.category_expanders = {}
         for result in results:
             article = self.catalog.articles[result.id]
             self.row(article.title, article.icon, result.id, result.snippet, query)

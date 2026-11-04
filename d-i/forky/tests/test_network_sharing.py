@@ -1356,7 +1356,7 @@ class MenuTests(unittest.TestCase):
         for label, title in (
             ('Sharing Status', 'Sharing Status'),
             ('Show Configured Exports', 'Configured Export Policy (not a live export listing)'),
-            ('Sharing Help', 'Network Sharing Help'), ('Recent NFS Logs', 'Recent NFS Logs'),
+            ('Recent NFS Logs', 'Recent NFS Logs'),
         ):
             reply = subprocess.CompletedProcess([], 0, 'fixture status or log\n')
             with self.subTest(label=label), mock.patch.object(MENU, 'systemctl', return_value=reply) as control, mock.patch.object(MENU, 'command', return_value=reply) as command, mock.patch.object(MENU, 'show') as show:
@@ -1713,7 +1713,6 @@ class MenuIconTests(unittest.TestCase):
         'Identity Mapping and RPC Diagnostics': ('IDENTITY_MAPPING_AND_RPC_DIAGNOSTICS', 'system-search'),
         'Show Configured Exports': ('SHOW_CONFIGURED_EXPORTS', 'folder-publicshare'),
         'Recent NFS Logs': ('RECENT_NFS_LOGS', 'text-x-log'),
-        'Sharing Help': ('SHARING_HELP', 'help-browser'),
         'Continue': ('CONTINUE', 'go-next'),
         'Back': ('BACK', 'go-previous'), 'Cancel': ('CANCEL', 'dialog-cancel'),
     }
