@@ -114,6 +114,10 @@ sub ensure_action_tools {
             'managed Samsung firmware extractor is not installed',
         );
     }
+    if ($action eq 'mirror-screen') {
+        $self->config->require_tool('scrcpy', 'scrcpy is not installed');
+        $self->config->require_tool('wayland_app', 'managed Wayland transient launcher is not installed');
+    }
     return;
 }
 
@@ -285,6 +289,31 @@ sub run_action {
     ) if $action eq 'logcat-recent';
     return $self->transfer->bugreport($arguments[0])
         if $action eq 'bugreport';
+    if ($action eq 'mirror-screen') {
+        $self->device->wait_for_serial($arguments[0]);
+        return $self->command->run_unbounded(
+            # The generic Wayland launcher owns scrcpy in a collected
+            # transient app.slice service.  The ADB terminal may close after
+            # systemd-run accepts the request; scrcpy remains owned by that
+            # user-manager unit and is stopped with the desktop session.
+            $self->config->require_tool('wayland_app'),
+            'auto',
+            '--',
+            '/usr/bin/env',
+            'SDL_VIDEODRIVER=wayland',
+            $self->config->require_tool('scrcpy'),
+            '--serial=' . $arguments[0],
+            '--video-codec=h264',
+            '--max-size=1600',
+            '--max-fps=60',
+            '--video-bit-rate=8M',
+            '--hwdec=auto',
+            '--keyboard=uhid',
+            '--mouse=sdk',
+            '--no-audio',
+            '--no-clipboard-autosync',
+        );
+    }
     return $self->backup->backup($arguments[0])
         if $action eq 'backup-device';
 

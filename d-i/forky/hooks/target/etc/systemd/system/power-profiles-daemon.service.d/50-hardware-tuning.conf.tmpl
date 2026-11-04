@@ -1,7 +1,11 @@
 [Unit]
 Description=Power Profiles API for the managed hardware tuning broker
 Requires=hardware-tuning.socket hardware-tuning.service
-After=dbus.service hardware-tuning.socket hardware-tuning.service
+# The broker publishes its socket before policy initialization, so PPD can
+# complete its initial status request and then acquire its D-Bus name while
+# the broker performs the owner check. Keep the requirement for socket/service
+# ownership, but do not add an ordering edge back to the broker.
+After=dbus.service hardware-tuning.socket
 PartOf=hardware-tuning.service
 
 [Service]

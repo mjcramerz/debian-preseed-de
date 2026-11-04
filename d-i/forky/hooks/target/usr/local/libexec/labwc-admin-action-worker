@@ -31,6 +31,14 @@ GUEST_STOP_UNITS = ("podman-devops-restart.service", "incus-startup.service")
 # before the direct backend while PID 1 and the system D-Bus are still alive;
 # the installed unit drop-ins also encode this transaction ordering.
 SCX_STOP_UNITS = ("scx_loader.service", "scx.service")
+# Stop user-owned GVfs units while their bus and session are still available.
+# This lets their unmount helpers finish before PID 1 tears down user@UID;
+# absent package units are handled as optional below.
+GVFS_STOP_UNITS = (
+    "labwc-gvfs-volume-monitor.service",
+    "gvfs-udisks2-volume-monitor.service",
+    "gvfs-daemon.service",
+)
 SHARING_CONFIG = Path("/etc/network-sharing/config.json")
 ZRAM_WORK_UNITS = ("zram-idle-writeback.timer", "zram-cold-tier.timer",
                    "zram-writebackd.service", "zram-writeback.service")
@@ -668,6 +676,32 @@ class Worker:
         if present:
             self.stop_units(tuple(present))
 
+    def stop_optional_user_units(self, names: tuple[str, ...]) -> None:
+        present = []
+        for name in names:
+            def inspect_unit():
+                state = self.userctl(
+                    "show", name, "--property=LoadState", "--value",
+                    timeout=5, max_output=256,
+                ).strip()
+                if state == "not-found":
+                    return
+                if state not in {"loaded", "masked", "error", "bad-setting", "merged", "stub"}:
+                    raise Error(f"cannot determine optional user unit load state: {name}")
+                present.append(name)
+            self.best_effort("optional user unit " + name, inspect_unit)
+        if present:
+            self.userctl("stop", *present, timeout=30)
+
+    def stop_scx_backends(self) -> None:
+        # Do not enqueue the mutually conflicting loader and direct backend in
+        # one transaction. Stop the D-Bus loader first; its conflict edge can
+        # then retire the direct backend without recreating the shutdown cycle
+        # seen when both package units were submitted together.
+        for name in SCX_STOP_UNITS:
+            self.best_effort("sched-ext backend " + name,
+                             lambda name=name: self.stop_optional_units((name,)))
+
     def shutdown_run(self, argv: list[str], *, accepted: tuple[int, ...] = (0,)) -> str | None:
         if self.shutdown_deadline is None:
             self.shutdown_deadline = time.monotonic() + SHUTDOWN_CLEANUP_SECONDS
@@ -709,11 +743,12 @@ class Worker:
         finally:
             if self.shutdown_deadline is not None:
                 self.shutdown_deadline += time.monotonic() - started
+        self.best_effort("GVfs user units", lambda: self.stop_optional_user_units(GVFS_STOP_UNITS))
         # Both Waybar and gtkgreet power/reboot wrappers converge here. Drain
         # the loader first, then the direct scheduler backend, before stopping
         # greetd and the user manager. Missing SCX units are harmless for
         # profiles that do not opt into sched_ext.
-        self.best_effort("sched-ext backends", lambda: self.stop_optional_units(SCX_STOP_UNITS))
+        self.best_effort("sched-ext backends", self.stop_scx_backends)
         self.best_effort("greeter", lambda: self.shutdown_run(
             ["/usr/bin/systemctl", "--no-block", "stop", "greetd.service"]))
         # Stop the manager synchronously before logind discards its session.

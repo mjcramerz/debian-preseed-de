@@ -66,6 +66,7 @@ my %SERIAL_ACTIONS = map { $_ => 1 } qw(
   logcat-recent
   bugreport
   list-forwards
+  mirror-screen
 );
 
 sub fail {

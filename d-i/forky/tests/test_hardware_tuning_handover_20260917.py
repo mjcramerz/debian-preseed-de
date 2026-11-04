@@ -643,6 +643,11 @@ class ClientAndInstallTests(unittest.TestCase):
         helper = text.split("profile hardware-tuning-policy ", 1)[1]
         self.assertNotIn("/usr/bin/systemctl", helper)
         self.assertNotIn("/sys/", helper)
+        for rule in (
+                "dbus (send, receive) bus=system path=/org/freedesktop/systemd1",
+                "dbus (send, receive) bus=system path=/org/freedesktop/systemd1{,/unit/*,/job/[0-9]*}",
+                "dbus (send, receive) bus=system path=/org/freedesktop/systemd1/job/[0-9]*"):
+            self.assertIn(rule, helper)
         self.assertIn("-> hardware-tuning-policy", broker)
 
     def test_recover_all_skips_uninstalled_backend_but_keeps_existing_journal(self):

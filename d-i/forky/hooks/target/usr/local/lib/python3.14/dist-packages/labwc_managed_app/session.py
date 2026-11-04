@@ -424,6 +424,7 @@ def redirect_native_from_private_users(
     if app_name == "tutanota":
         provider_dependencies.append("labwc-kwallet-portal.service")
     startup_dependencies = " ".join([session_dependency, *provider_dependencies])
+    is_edge = app_name == "microsoft-edge"
     provider_dependency_args = (
         [f"--property=Requisite={' '.join(provider_dependencies)}"]
         if provider_dependencies else []
@@ -484,6 +485,10 @@ def redirect_native_from_private_users(
         f"--property=PartOf={startup_dependencies}",
         f"--property=ConditionPathExists=!/run/user/{os.getuid()}/labwc-session-closing",
         "--property=ExitType=main",
+        # Edge returns 1 when its browser process closes during session
+        # teardown. Scope the exception to this native family so real launch
+        # failures from every other application remain failed units.
+        *(["--property=SuccessExitStatus=1"] if is_edge else []),
         "--property=UnsetEnvironment=" + " ".join(("LABWC_MENU_ACTION_WAIT", *sorted(
             name for name in diagnostics.DIAGNOSTIC_NAMES if name not in (environment or {})))),
         "--property=KillMode=control-group", "--property=TimeoutStopSec=20s",

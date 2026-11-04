@@ -159,6 +159,8 @@ run_desktop_late_command() {
   desktop_log "validated Satty target architecture=${SATTY_TARGET_ARCHITECTURE}"
   desktop_android_platform_tools_preflight_target_architecture
   desktop_log "validated Android SDK Platform-Tools target architecture=${ANDROID_PLATFORM_TOOLS_TARGET_ARCHITECTURE}"
+  desktop_scrcpy_preflight_target_architecture
+  desktop_log "validated scrcpy target architecture=${SCRCPY_TARGET_ARCHITECTURE}"
   desktop_samloader_preflight_target_architecture
   desktop_log "validated samloader-rs target architecture=${SAMLOADER_TARGET_ARCHITECTURE}"
   desktop_digital_assets_preflight_target_architecture
@@ -180,6 +182,8 @@ run_desktop_late_command() {
   desktop_log "installed pinned Satty screenshot annotation tool"
   desktop_install_android_platform_tools
   desktop_log "installed latest Google Android SDK Platform-Tools"
+  desktop_install_scrcpy
+  desktop_log "installed pinned scrcpy remote-control client"
   desktop_install_samloader
   desktop_log "installed pinned samloader-rs Samsung firmware tool"
   desktop_install_digital_assets

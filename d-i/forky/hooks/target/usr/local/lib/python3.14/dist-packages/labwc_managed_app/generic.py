@@ -441,6 +441,12 @@ def transient_argv(kind: str, mode: str, arguments: list[str], environment: dict
     # The connection worker needs the host root UID mapping for that helper;
     # its restricted AppArmor child owns the only permitted FUSE mount.
     is_foot = kind == "wayland" and arguments[0] == "/usr/bin/foot"
+    is_debug_view = (is_foot and len(arguments) == 5
+                     and arguments[1:4] == ["-e", "/usr/local/libexec/labwc-debug-session", "view"]
+                     and re.fullmatch(r"[0-9a-f]{24}", arguments[4]) is not None)
+    is_edge = kind == "electron" and Path(arguments[0]).name in {
+        "microsoft-edge", "microsoft-edge-stable",
+    }
     is_terminal = kind == "wayland" and arguments[0] in {
         "/usr/bin/foot", "/usr/bin/kitty", "/usr/bin/terminal-emulator",
         "/usr/local/bin/labwc-terminal",
@@ -489,6 +495,15 @@ def transient_argv(kind: str, mode: str, arguments: list[str], environment: dict
         *(["--property=SuccessExitStatus=1"] if is_foot and (
             len(arguments) == 1 or arguments == ["/usr/bin/foot", "-e", "btop"]
         ) else []),
+        # The managed Edge client returns 1 when its browser process closes as
+        # the session target is stopped. Accept it only for this transient
+        # browser family; other launch failures remain failures.
+        *(["--property=SuccessExitStatus=1"] if is_edge else []),
+        # The diagnostics terminal is a deliberately detached view of an
+        # already collected session. Foot reports its close as status 2 in
+        # this exact command shape; ordinary shells, applications and malformed
+        # debug arguments retain their real failure status.
+        *(["--property=SuccessExitStatus=2"] if is_debug_view else []),
         # Fuzzel uses status 3 for an intentional close of the appearance
         # workflow. Keep that user dismissal out of the failed-unit state while
         # preserving real nonzero failures.
@@ -574,6 +589,9 @@ def main(kind: str, argv: list[str] | None = None) -> int:
     if (network_command is None or network_command[0] == "/usr/local/libexec/app-veth-run") and executable not in {
         "/usr/bin/foot", "/usr/bin/footclient", "/usr/bin/kitty", "/usr/bin/terminal-emulator",
         "/usr/local/bin/labwc-terminal", "/usr/bin/kleopatra",
+        # The ADB action validates the device serial and invokes this
+        # root-owned remote-control client through the managed transient path.
+        "/usr/local/bin/scrcpy",
         "/usr/bin/kwalletmanager6", "/usr/bin/pinentry-qt",
         "/usr/bin/labwc-tweaks", "/usr/bin/qt6ct", "/usr/bin/pavucontrol",
         "/usr/bin/wdisplays", "/usr/local/bin/waypaper",

@@ -135,6 +135,11 @@ class Broker:
         self.tokens, self.updated = 16.0, time.monotonic()
         self.report_after = 0.0
         self.stop = asyncio.Event()
+        # Socket activation must be reachable while policy initialization is
+        # waiting for the optional PPD D-Bus adapter.  Status is safe from
+        # this provisional state; mutations wait until initialization has
+        # completed so a transient client cannot race recovery or ownership.
+        self.ready = asyncio.Event()
         self.writers = set()
         self.was_active = self.seat.active()
         self.policy_state: dict = {}
@@ -591,6 +596,14 @@ class Broker:
                 raise TuningError("one bounded JSON request is required")
             request = self.validate_request(decode(line))
             self.rate_limit(uid, request["action"])
+            if not self.ready.is_set():
+                if request["action"] == "status":
+                    await self.reply(writer, {"ok": True, "result": self.status()})
+                    return
+                try:
+                    await asyncio.wait_for(self.ready.wait(), 50)
+                except asyncio.TimeoutError as exc:
+                    raise TuningError("hardware controller initialization is still pending") from exc
             async with self.control_lock():
                 if self.stop.is_set():
                     raise TuningError("hardware controller stopping; request was not executed")
@@ -661,14 +674,20 @@ class Broker:
                     await self.reconcile(health=True)
 
     async def run(self, listener: socket.socket) -> None:
-        await self.initialize()
         server = await asyncio.start_unix_server(self.serve, sock=listener, limit=4096)
         loop = asyncio.get_running_loop()
         for sig in (signal.SIGTERM, signal.SIGINT):
             loop.add_signal_handler(sig, self.stop.set)
-        ticker = asyncio.create_task(self.poll())
-        stopping = asyncio.create_task(self.stop.wait())
+        ticker = stopping = None
         try:
+            # PPD performs its first status request before acquiring its D-Bus
+            # name.  The socket must therefore be live before initialization
+            # asks the policy helper to observe that owner.  Only status is
+            # served before ready; mutating requests wait on the event above.
+            await self.initialize()
+            self.ready.set()
+            ticker = asyncio.create_task(self.poll())
+            stopping = asyncio.create_task(self.stop.wait())
             completed, _ = await asyncio.wait((ticker, stopping), return_when=asyncio.FIRST_COMPLETED)
             if ticker in completed:
                 # A dead monitor must not leave owned controls active in
@@ -681,8 +700,11 @@ class Broker:
             # Prevent closing lease handlers from applying another profile
             # while the broker restores hardware on failure or cancellation.
             self.stop.set()
-            ticker.cancel()
-            stopping.cancel()
+            self.ready.set()
+            if ticker is not None:
+                ticker.cancel()
+            if stopping is not None:
+                stopping.cancel()
             try:
                 # Python 3.14 waits for clients in Server.wait_closed(). Close
                 # the listener first, then every accepted transport (including
@@ -691,7 +713,8 @@ class Broker:
                 server.abort_clients()
                 for writer in list(self.writers):
                     writer.close()
-                await asyncio.gather(ticker, stopping, return_exceptions=True)
+                await asyncio.gather(*(task for task in (ticker, stopping) if task is not None),
+                                     return_exceptions=True)
                 await asyncio.wait_for(server.wait_closed(), 5)
             finally:
                 # A failed/expired connection close must not skip restoration.

@@ -26,7 +26,7 @@ late_command_load_host_env
 
 desktop_module_dir="${runtime_dir}/bootstrap/desktop-modules"
 install -d -m 0700 "$desktop_module_dir"
-for desktop_module in detect components satty xwayland waypaper android-platform-tools samloader hardware-tuning scx-scheds digital-assets resctl-bench filen fonts verify labwc; do
+for desktop_module in detect components satty xwayland waypaper android-platform-tools scrcpy samloader hardware-tuning scx-scheds digital-assets resctl-bench filen fonts verify labwc; do
   fetch_hook "scripts/desktop/${desktop_module}.sh" "${desktop_module_dir}/${desktop_module}.sh"
 done
 unset desktop_module
@@ -43,6 +43,8 @@ unset desktop_module
 . "${desktop_module_dir}/waypaper.sh"
 # shellcheck disable=SC1090,SC1091
 . "${desktop_module_dir}/android-platform-tools.sh"
+# shellcheck disable=SC1090,SC1091
+. "${desktop_module_dir}/scrcpy.sh"
 # shellcheck disable=SC1090,SC1091
 . "${desktop_module_dir}/samloader.sh"
 # shellcheck disable=SC1090,SC1091

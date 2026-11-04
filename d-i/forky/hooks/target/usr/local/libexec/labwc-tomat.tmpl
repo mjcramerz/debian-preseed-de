@@ -536,7 +536,7 @@ class Context:
                   "--category=tomat.settings", "Tomat", message], timeout=5, check=False)
         print(message)
 
-    def custom_start(self) -> None:
+    def custom_start(self) -> bool:
         """Choose bounded per-session values; never edit the persistent config."""
         display = os.environ.get("WAYLAND_DISPLAY", "")
         if not re.fullmatch(r"wayland-[0-9]+", display):
@@ -556,6 +556,10 @@ class Context:
                 stdout=subprocess.PIPE, stderr=subprocess.DEVNULL, env=environment,
                 timeout=20, check=False,
             )
+            if result.returncode == 1:
+                # fuzzel status 1 is an ordinary dismissal.  Keep the
+                # transient launcher out of systemd's failed-unit state.
+                return False
             if result.returncode != 0:
                 raise Error("Tomat Custom selection was cancelled")
             if len(result.stdout) > MAX_CUSTOM_SELECTION:
@@ -569,6 +573,7 @@ class Context:
                    "--break", selected["break"], "--long-break", selected["long_break"],
                    "--sessions", selected["sessions"]]
         os.execve(TOMAT, command, self.env)
+        return True
 
 
 def main(argv: list[str]) -> int:
@@ -607,7 +612,8 @@ def main(argv: list[str]) -> int:
         )
     if action == "custom":
         context.ensure()
-        context.custom_start()
+        if not context.custom_start():
+            return 0
     with context.locked():
         context.ensure()
         if action == "settings":

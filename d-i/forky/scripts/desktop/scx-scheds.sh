@@ -58,8 +58,8 @@ desktop_install_scx_scheduler() (
   # Keeping both installed preserves the packaged manual fallback interfaces.
   desktop_disable_unit_if_available scx.service system
   desktop_disable_unit_if_available scx_loader.service system
-  if [ "$desktop_scx_enabled" = true ]; then
-    desktop_enable_unit_if_available scx_loader.service system
-  fi
-  desktop_log "configured scx-scheds scheduler=scx_flash loader=org.scx.Loader autostart=${desktop_scx_enabled}"
+  # The package's org.scx.Loader D-Bus activation file starts the loader only
+  # when a client requests it.  Do not enable the unit at boot: doing so makes
+  # sched_ext a boot dependency and defeats the on-demand broker contract.
+  desktop_log "configured scx-scheds scheduler=scx_flash loader=org.scx.Loader activation=on-demand enabled=${desktop_scx_enabled}"
 )

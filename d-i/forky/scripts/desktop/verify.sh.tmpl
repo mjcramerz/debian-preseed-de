@@ -906,6 +906,12 @@ require_readable /usr/local/lib/android-sdk/platform-tools/.release
 require_symlink_target /usr/local/bin/adb ../lib/android-sdk/platform-tools/adb
 require_symlink_target /usr/local/bin/fastboot ../lib/android-sdk/platform-tools/fastboot
 
+require_executable /usr/local/bin/scrcpy
+require_mode /usr/local/bin/scrcpy 755
+require_readable /usr/local/bin/scrcpy-server
+require_mode /usr/local/bin/scrcpy-server 644
+require_readable /usr/local/share/doc/scrcpy/INSTALLATION.json
+
 require_executable /usr/local/lib/samloader/samloader
 require_readable /usr/local/lib/samloader/.release
 require_symlink_target /usr/local/bin/samloader ../lib/samloader/samloader

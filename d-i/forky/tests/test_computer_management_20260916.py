@@ -384,6 +384,17 @@ class IntegrationContractTests(unittest.TestCase):
         for token in tokens:
             self.assertIn("'" + token + "'", runtime, token)
 
+    def test_scrcpy_screen_mirroring_uses_collected_wayland_transient(self):
+        runtime = payload_read_text(TARGET / 'usr/local/lib/perl5/site_perl/labwc-adb/AndroidADB/Runtime.pm')
+        generic = payload_read_text(
+            TARGET / 'usr/local/lib/python3.14/dist-packages/labwc_managed_app/generic.py')
+        self.assertIn("$self->config->require_tool('wayland_app')", runtime)
+        self.assertIn("'SDL_VIDEODRIVER=wayland'", runtime)
+        self.assertIn("'--hwdec=auto'", runtime)
+        self.assertIn('"/usr/bin/systemd-run", "--user", "--quiet", "--collect"', generic)
+        self.assertIn('"--slice=app.slice"', generic)
+        self.assertIn('"--property=PartOf=labwc-session.target"', generic)
+
     def test_codex_prompt_cannot_become_an_option(self):
         runtime = payload_read_text(TARGET / 'usr/local/lib/perl5/site_perl/ai-copilots/AICopilots/Runtime.pm')
         self.assertIn("_exec_codex('--', $prompt)", runtime)

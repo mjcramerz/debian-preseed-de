@@ -38,6 +38,11 @@ my %TOOL_CANDIDATES = (
         '/usr/bin/samloader',
         '/bin/samloader',
     ],
+    scrcpy => [
+        '/usr/local/bin/scrcpy',
+        '/usr/bin/scrcpy',
+        '/bin/scrcpy',
+    ],
     systemctl => [
         '/usr/bin/systemctl',
         '/bin/systemctl',
@@ -51,6 +56,9 @@ my %TOOL_CANDIDATES = (
     ],
     terminal => [
         '/usr/local/bin/labwc-terminal',
+    ],
+    wayland_app => [
+        '/usr/local/bin/labwc-wayland-app',
     ],
     timeout => [
         '/usr/bin/timeout',
@@ -208,7 +216,7 @@ sub from_environment {
     for my $tool (qw(adb df ss timeout)) {
         $tool_paths{$tool} = _resolve_tool($tool, 1);
     }
-    for my $tool (qw(fastboot notify_send samloader samsung_extractor systemctl terminal)) {
+    for my $tool (qw(fastboot notify_send samloader scrcpy samsung_extractor systemctl terminal wayland_app)) {
         $tool_paths{$tool} = _resolve_tool($tool, 0);
     }
 

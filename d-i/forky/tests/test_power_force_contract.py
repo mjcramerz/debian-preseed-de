@@ -141,6 +141,14 @@ class ForceContractTests(unittest.TestCase):
                 worker.final_power_action()
                 self.commands.assert_called_once_with(['/usr/bin/systemctl', '--force', 'reboot'], timeout=25, max_output=4096)
 
+    def test_sched_ext_backends_stop_in_loader_first_separate_transactions(self):
+        worker = self.power.Worker(1000, 'desktop', 'poweroff')
+        events = []
+        with mock.patch.object(worker, 'stop_optional_units',
+                               side_effect=lambda names: events.append(tuple(names))):
+            worker.stop_scx_backends()
+        self.assertEqual(events, [('scx_loader.service',), ('scx.service',)])
+
     def test_optional_nfs_services_support_client_server_both_and_neither(self):
         server = {'nfs-server.service', 'nfs-mountd.service', 'nfsdcld.service'}
         client = {'nfs-idmapd.service', 'rpc-gssd.service', 'nfs-client.target'}

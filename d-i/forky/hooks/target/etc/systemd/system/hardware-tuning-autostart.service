@@ -1,7 +1,7 @@
 [Unit]
 Description=Boot opt-in and active marker for automatic hardware tuning
 BindsTo=hardware-tuning.service
-After=hardware-tuning.service
+After=hardware-tuning.service dbus.service
 
 [Service]
 Type=oneshot

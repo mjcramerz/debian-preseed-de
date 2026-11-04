@@ -174,13 +174,13 @@ profile hardware-tuning-policy /usr/local/libexec/hardware-tuning-policy flags=(
   unix,
   dbus (send) bus=system path=/org/freedesktop/DBus
     interface=org.freedesktop.DBus member=Hello peer=(name=org.freedesktop.DBus),
-  dbus (send) bus=system path=/org/freedesktop/systemd1
+  dbus (send, receive) bus=system path=/org/freedesktop/systemd1
     interface=org.freedesktop.systemd1.Manager
     member={LoadUnit,GetUnitFileState,EnableUnitFiles,DisableUnitFiles,MaskUnitFiles,UnmaskUnitFiles,Reload,StartUnit,StopUnit}
     peer=(name=org.freedesktop.systemd1),
-  dbus (send) bus=system path=/org/freedesktop/systemd1{,/unit/*,/job/[0-9]*}
+  dbus (send, receive) bus=system path=/org/freedesktop/systemd1{,/unit/*,/job/[0-9]*}
     interface=org.freedesktop.DBus.Properties member=Get peer=(name=org.freedesktop.systemd1),
-  dbus (send) bus=system path=/org/freedesktop/systemd1/job/[0-9]*
+  dbus (send, receive) bus=system path=/org/freedesktop/systemd1/job/[0-9]*
     interface=org.freedesktop.systemd1.Job member=Cancel peer=(name=org.freedesktop.systemd1),
   signal (receive) peer=unconfined,
   signal (receive, send) peer=hardware-tuning-broker,
