@@ -740,7 +740,7 @@ e886bd7a165bdf657269ead02661e605dd578f235be4ee24963039aed193b7c0  hooks/target/e
 2282a00e84dc8b8fad234cfb834ea90302c149ff26bfb0b45876d62d2524c27a  hooks/target/etc/skel-desktop/.config/waybar/style/tray.css.tmpl
 29bf6db7ad0cef19373388c66996bc80245dcb7281b32ccbecc7351b0e86d3e7  hooks/target/etc/skel-desktop/.config/waybar/style/wayscriber.css.tmpl
 5309058c9025409e4b2179281fedc24a0cff7e2b3d271cacf2c856f7f22cfee8  hooks/target/etc/skel-desktop/.config/waybar/style/workspaces.css.tmpl
-3e5e9b5b71e1b0820884c6a1ef6f0f6c65f83f7bc7ead5160c8c8232073aa2df  hooks/target/etc/skel-desktop/.config/waybar/style-common.css.tmpl
+85b48d1beb16e642cf693f35c832ae4e0a30e1ba108c60d37db1ef319a0c85cc  hooks/target/etc/skel-desktop/.config/waybar/style-common.css.tmpl
 ccb1fd9b047abf042652886e62f223529f9e1e538933fce83d016c76ad45ab1b  hooks/target/etc/skel-desktop/.config/waybar/style.css.tmpl
 99207f0295f9d4dd47f092b8b84a0a78cdae2ab2e7d0547b686042f3368f2f85  hooks/target/etc/skel-desktop/.config/waycal/style.css
 7713b273610392657bcba7b94699a6c0d22a3cdda230f35cf950e336a66461a8  hooks/target/etc/skel-desktop/.config/waypaper/config.ini.tmpl

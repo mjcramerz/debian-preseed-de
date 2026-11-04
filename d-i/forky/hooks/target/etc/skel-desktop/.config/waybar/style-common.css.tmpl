@@ -348,7 +348,8 @@ window#waybar.external #custom-power {
   padding-right: __INSTALLER_LABWC_WAYBAR_EXTERNAL_SESSION_BUTTON_PADDING_X__px;
 }
 
-/* Waybar/GTK animates state changes through this shared transition contract. */
+/* Waybar/GTK animates every widget's transitionable hover state here. Keep
+ * image and gradient swaps discrete; GTK cannot interpolate those values. */
 * {
-  transition: background-color 180ms ease, border-color 180ms ease, color 180ms ease, box-shadow 180ms ease;
+  transition: background-color 400ms ease, border-color 400ms ease, color 400ms ease, box-shadow 400ms ease;
 }
