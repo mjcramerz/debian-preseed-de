@@ -431,6 +431,35 @@
               </object>
             </child>
             <child>
+              <object class="GtkMenuItem" id="connectivity_remote_desktop">
+                <property name="visible">True</property>
+                <child>
+                  <object class="GtkBox">
+                    <property name="visible">True</property>
+                    <property name="spacing">__INSTALLER_LABWC_WAYBAR_SHARED_MENU_ROW_SPACING__</property>
+                    <property name="orientation">horizontal</property>
+                    <child>
+                      <object class="GtkImage" id="system_remote_desktop_icon">
+                        <property name="visible">True</property>
+                        <property name="icon-name">__THEME_WAYBAR_DROPDOWN_SYSTEM_REMOTE_DESKTOP_ICON_NAME__</property>
+                        <property name="pixel-size">__INSTALLER_LABWC_WAYBAR_SHARED_MENU_ICON_SIZE__</property>
+                        <property name="width-request">__INSTALLER_LABWC_WAYBAR_SHARED_MENU_ICON_WIDTH__</property>
+                        <property name="use-fallback">True</property>
+                      </object>
+                    </child>
+                    <child>
+                      <object class="GtkLabel">
+                        <property name="visible">True</property>
+                        <property name="label">Remote Desktop…</property>
+                        <property name="xalign">0</property>
+                        <property name="hexpand">True</property>
+                      </object>
+                    </child>
+                  </object>
+                </child>
+              </object>
+            </child>
+            <child>
               <object class="GtkMenuItem" id="connectivity_network_scan">
                 <property name="visible">True</property>
                 <child>
@@ -750,6 +779,305 @@
                       <object class="GtkLabel">
                         <property name="visible">True</property>
                         <property name="label">Bluetooth devices…</property>
+                        <property name="xalign">0</property>
+                        <property name="hexpand">True</property>
+                      </object>
+                    </child>
+                  </object>
+                </child>
+              </object>
+            </child>
+          </object>
+        </child>
+      </object>
+    </child>
+    <child>
+      <object class="GtkMenuItem">
+        <property name="visible">True</property>
+        <child>
+          <object class="GtkBox">
+            <property name="visible">True</property>
+            <property name="spacing">__INSTALLER_LABWC_WAYBAR_SHARED_MENU_ROW_SPACING__</property>
+            <property name="orientation">horizontal</property>
+            <child>
+              <object class="GtkImage" id="system_phone_icon">
+                <property name="visible">True</property>
+                <property name="icon-name">__THEME_WAYBAR_DROPDOWN_SYSTEM_PHONE_ICON_NAME__</property>
+                <property name="pixel-size">__INSTALLER_LABWC_WAYBAR_SHARED_MENU_ICON_SIZE__</property>
+                <property name="width-request">__INSTALLER_LABWC_WAYBAR_SHARED_MENU_ICON_WIDTH__</property>
+                <property name="use-fallback">True</property>
+              </object>
+            </child>
+            <child>
+              <object class="GtkLabel">
+                <property name="visible">True</property>
+                <property name="label">Android devices</property>
+                <property name="xalign">0</property>
+                <property name="hexpand">True</property>
+              </object>
+            </child>
+          </object>
+        </child>
+        <child type="submenu">
+          <object class="GtkMenu">
+            <property name="accel-group">menu_accel_group</property>
+            <property name="reserve-toggle-size">False</property>
+            <style>
+              <class name="submenu" />
+            </style>
+            <child>
+              <object class="GtkMenuItem" id="android_device_menu">
+                <property name="visible">True</property>
+                <child>
+                  <object class="GtkBox">
+                    <property name="visible">True</property>
+                    <property name="spacing">__INSTALLER_LABWC_WAYBAR_SHARED_MENU_ROW_SPACING__</property>
+                    <property name="orientation">horizontal</property>
+                    <child>
+                      <object class="GtkImage" id="system_phone_icon_1">
+                        <property name="visible">True</property>
+                        <property name="icon-name">__THEME_WAYBAR_DROPDOWN_SYSTEM_PHONE_ICON_NAME__</property>
+                        <property name="pixel-size">__INSTALLER_LABWC_WAYBAR_SHARED_MENU_ICON_SIZE__</property>
+                        <property name="width-request">__INSTALLER_LABWC_WAYBAR_SHARED_MENU_ICON_WIDTH__</property>
+                        <property name="use-fallback">True</property>
+                      </object>
+                    </child>
+                    <child>
+                      <object class="GtkLabel">
+                        <property name="visible">True</property>
+                        <property name="label">Open Android device actions…</property>
+                        <property name="xalign">0</property>
+                        <property name="hexpand">True</property>
+                      </object>
+                    </child>
+                  </object>
+                </child>
+              </object>
+            </child>
+            <child>
+              <object class="GtkMenuItem" id="android_adb_server">
+                <property name="visible">True</property>
+                <child>
+                  <object class="GtkBox">
+                    <property name="visible">True</property>
+                    <property name="spacing">__INSTALLER_LABWC_WAYBAR_SHARED_MENU_ROW_SPACING__</property>
+                    <property name="orientation">horizontal</property>
+                    <child>
+                      <object class="GtkImage" id="system_phone_icon_2">
+                        <property name="visible">True</property>
+                        <property name="icon-name">__THEME_WAYBAR_DROPDOWN_SYSTEM_PHONE_ICON_NAME__</property>
+                        <property name="pixel-size">__INSTALLER_LABWC_WAYBAR_SHARED_MENU_ICON_SIZE__</property>
+                        <property name="width-request">__INSTALLER_LABWC_WAYBAR_SHARED_MENU_ICON_WIDTH__</property>
+                        <property name="use-fallback">True</property>
+                      </object>
+                    </child>
+                    <child>
+                      <object class="GtkLabel">
+                        <property name="visible">True</property>
+                        <property name="label">ADB server…</property>
+                        <property name="xalign">0</property>
+                        <property name="hexpand">True</property>
+                      </object>
+                    </child>
+                  </object>
+                </child>
+              </object>
+            </child>
+            <child>
+              <object class="GtkMenuItem" id="android_devices">
+                <property name="visible">True</property>
+                <child>
+                  <object class="GtkBox">
+                    <property name="visible">True</property>
+                    <property name="spacing">__INSTALLER_LABWC_WAYBAR_SHARED_MENU_ROW_SPACING__</property>
+                    <property name="orientation">horizontal</property>
+                    <child>
+                      <object class="GtkImage" id="system_phone_icon_3">
+                        <property name="visible">True</property>
+                        <property name="icon-name">__THEME_WAYBAR_DROPDOWN_SYSTEM_PHONE_ICON_NAME__</property>
+                        <property name="pixel-size">__INSTALLER_LABWC_WAYBAR_SHARED_MENU_ICON_SIZE__</property>
+                        <property name="width-request">__INSTALLER_LABWC_WAYBAR_SHARED_MENU_ICON_WIDTH__</property>
+                        <property name="use-fallback">True</property>
+                      </object>
+                    </child>
+                    <child>
+                      <object class="GtkLabel">
+                        <property name="visible">True</property>
+                        <property name="label">Connected devices and shell…</property>
+                        <property name="xalign">0</property>
+                        <property name="hexpand">True</property>
+                      </object>
+                    </child>
+                  </object>
+                </child>
+              </object>
+            </child>
+            <child>
+              <object class="GtkMenuItem" id="android_scrcpy_mirror">
+                <property name="visible">True</property>
+                <child>
+                  <object class="GtkBox">
+                    <property name="visible">True</property>
+                    <property name="spacing">__INSTALLER_LABWC_WAYBAR_SHARED_MENU_ROW_SPACING__</property>
+                    <property name="orientation">horizontal</property>
+                    <child>
+                      <object class="GtkImage" id="system_phone_icon_4">
+                        <property name="visible">True</property>
+                        <property name="icon-name">__THEME_WAYBAR_DROPDOWN_SYSTEM_PHONE_ICON_NAME__</property>
+                        <property name="pixel-size">__INSTALLER_LABWC_WAYBAR_SHARED_MENU_ICON_SIZE__</property>
+                        <property name="width-request">__INSTALLER_LABWC_WAYBAR_SHARED_MENU_ICON_WIDTH__</property>
+                        <property name="use-fallback">True</property>
+                      </object>
+                    </child>
+                    <child>
+                      <object class="GtkLabel">
+                        <property name="visible">True</property>
+                        <property name="label">Mirror and control phone screen (scrcpy)…</property>
+                        <property name="xalign">0</property>
+                        <property name="hexpand">True</property>
+                      </object>
+                    </child>
+                  </object>
+                </child>
+              </object>
+            </child>
+            <child>
+              <object class="GtkMenuItem" id="android_files">
+                <property name="visible">True</property>
+                <child>
+                  <object class="GtkBox">
+                    <property name="visible">True</property>
+                    <property name="spacing">__INSTALLER_LABWC_WAYBAR_SHARED_MENU_ROW_SPACING__</property>
+                    <property name="orientation">horizontal</property>
+                    <child>
+                      <object class="GtkImage" id="system_phone_icon_5">
+                        <property name="visible">True</property>
+                        <property name="icon-name">__THEME_WAYBAR_DROPDOWN_SYSTEM_PHONE_ICON_NAME__</property>
+                        <property name="pixel-size">__INSTALLER_LABWC_WAYBAR_SHARED_MENU_ICON_SIZE__</property>
+                        <property name="width-request">__INSTALLER_LABWC_WAYBAR_SHARED_MENU_ICON_WIDTH__</property>
+                        <property name="use-fallback">True</property>
+                      </object>
+                    </child>
+                    <child>
+                      <object class="GtkLabel">
+                        <property name="visible">True</property>
+                        <property name="label">Files and applications…</property>
+                        <property name="xalign">0</property>
+                        <property name="hexpand">True</property>
+                      </object>
+                    </child>
+                  </object>
+                </child>
+              </object>
+            </child>
+            <child>
+              <object class="GtkMenuItem" id="android_diagnostics">
+                <property name="visible">True</property>
+                <child>
+                  <object class="GtkBox">
+                    <property name="visible">True</property>
+                    <property name="spacing">__INSTALLER_LABWC_WAYBAR_SHARED_MENU_ROW_SPACING__</property>
+                    <property name="orientation">horizontal</property>
+                    <child>
+                      <object class="GtkImage" id="system_phone_icon_6">
+                        <property name="visible">True</property>
+                        <property name="icon-name">__THEME_WAYBAR_DROPDOWN_SYSTEM_PHONE_ICON_NAME__</property>
+                        <property name="pixel-size">__INSTALLER_LABWC_WAYBAR_SHARED_MENU_ICON_SIZE__</property>
+                        <property name="width-request">__INSTALLER_LABWC_WAYBAR_SHARED_MENU_ICON_WIDTH__</property>
+                        <property name="use-fallback">True</property>
+                      </object>
+                    </child>
+                    <child>
+                      <object class="GtkLabel">
+                        <property name="visible">True</property>
+                        <property name="label">Diagnostics and capture…</property>
+                        <property name="xalign">0</property>
+                        <property name="hexpand">True</property>
+                      </object>
+                    </child>
+                  </object>
+                </child>
+              </object>
+            </child>
+            <child>
+              <object class="GtkMenuItem" id="android_wireless_debugging">
+                <property name="visible">True</property>
+                <child>
+                  <object class="GtkBox">
+                    <property name="visible">True</property>
+                    <property name="spacing">__INSTALLER_LABWC_WAYBAR_SHARED_MENU_ROW_SPACING__</property>
+                    <property name="orientation">horizontal</property>
+                    <child>
+                      <object class="GtkImage" id="system_phone_icon_7">
+                        <property name="visible">True</property>
+                        <property name="icon-name">__THEME_WAYBAR_DROPDOWN_SYSTEM_PHONE_ICON_NAME__</property>
+                        <property name="pixel-size">__INSTALLER_LABWC_WAYBAR_SHARED_MENU_ICON_SIZE__</property>
+                        <property name="width-request">__INSTALLER_LABWC_WAYBAR_SHARED_MENU_ICON_WIDTH__</property>
+                        <property name="use-fallback">True</property>
+                      </object>
+                    </child>
+                    <child>
+                      <object class="GtkLabel">
+                        <property name="visible">True</property>
+                        <property name="label">Wireless debugging: pair or connect…</property>
+                        <property name="xalign">0</property>
+                        <property name="hexpand">True</property>
+                      </object>
+                    </child>
+                  </object>
+                </child>
+              </object>
+            </child>
+            <child>
+              <object class="GtkMenuItem" id="android_recovery">
+                <property name="visible">True</property>
+                <child>
+                  <object class="GtkBox">
+                    <property name="visible">True</property>
+                    <property name="spacing">__INSTALLER_LABWC_WAYBAR_SHARED_MENU_ROW_SPACING__</property>
+                    <property name="orientation">horizontal</property>
+                    <child>
+                      <object class="GtkImage" id="system_phone_icon_8">
+                        <property name="visible">True</property>
+                        <property name="icon-name">__THEME_WAYBAR_DROPDOWN_SYSTEM_PHONE_ICON_NAME__</property>
+                        <property name="pixel-size">__INSTALLER_LABWC_WAYBAR_SHARED_MENU_ICON_SIZE__</property>
+                        <property name="width-request">__INSTALLER_LABWC_WAYBAR_SHARED_MENU_ICON_WIDTH__</property>
+                        <property name="use-fallback">True</property>
+                      </object>
+                    </child>
+                    <child>
+                      <object class="GtkLabel">
+                        <property name="visible">True</property>
+                        <property name="label">Recovery and reboot…</property>
+                        <property name="xalign">0</property>
+                        <property name="hexpand">True</property>
+                      </object>
+                    </child>
+                  </object>
+                </child>
+              </object>
+            </child>
+            <child>
+              <object class="GtkMenuItem" id="android_fastboot">
+                <property name="visible">True</property>
+                <child>
+                  <object class="GtkBox">
+                    <property name="visible">True</property>
+                    <property name="spacing">__INSTALLER_LABWC_WAYBAR_SHARED_MENU_ROW_SPACING__</property>
+                    <property name="orientation">horizontal</property>
+                    <child>
+                      <object class="GtkImage" id="system_phone_icon_9">
+                        <property name="visible">True</property>
+                        <property name="icon-name">__THEME_WAYBAR_DROPDOWN_SYSTEM_PHONE_ICON_NAME__</property>
+                        <property name="pixel-size">__INSTALLER_LABWC_WAYBAR_SHARED_MENU_ICON_SIZE__</property>
+                        <property name="width-request">__INSTALLER_LABWC_WAYBAR_SHARED_MENU_ICON_WIDTH__</property>
+                        <property name="use-fallback">True</property>
+                      </object>
+                    </child>
+                    <child>
+                      <object class="GtkLabel">
+                        <property name="visible">True</property>
+                        <property name="label">Fastboot…</property>
                         <property name="xalign">0</property>
                         <property name="hexpand">True</property>
                       </object>

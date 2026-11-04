@@ -7,6 +7,12 @@ desktop_validate_scx_scheduler_policy() {
     true|false) ;;
     *) installer_fatal "HARDWARE_CPU_SCHEDULER_SCX_ENABLE must be true or false" ;;
   esac
+
+  desktop_scx_mode=${HARDWARE_CPU_SCHEDULER_SCX_MODE:-on-demand}
+  case "$desktop_scx_mode" in
+    direct|on-demand) ;;
+    *) installer_fatal "HARDWARE_CPU_SCHEDULER_SCX_MODE must be direct or on-demand" ;;
+  esac
 }
 
 desktop_require_scx_file() {
@@ -26,14 +32,15 @@ desktop_install_scx_scheduler() (
   fi
 
   # The profile-controlled packages are imported and installed by the software
-  # late helper. Require their service, loader, D-Bus activation, and selected
-  # scheduler before publishing managed config.
+  # late helper. Require both the long-running default and the interactive
+  # DevOps handoff scheduler before publishing managed config.
   for scx_unit in scx.service scx_loader.service; do
     scx_unit_path=$(target_systemd_unit_path "$scx_unit" system 2>/dev/null || true)
     [ -n "$scx_unit_path" ] ||
       installer_fatal "scx-scheds package unit is unavailable: ${scx_unit}"
   done
   for scx_asset in \
+    /usr/bin/scx_rusty \
     /usr/bin/scx_flash \
     /usr/bin/scx_loader \
     /usr/bin/scxctl \
@@ -56,10 +63,21 @@ desktop_install_scx_scheduler() (
 
   # Never enable both package backends: each can load a sched_ext scheduler.
   # Keeping both installed preserves the packaged manual fallback interfaces.
-  desktop_disable_unit_if_available scx.service system
-  desktop_disable_unit_if_available scx_loader.service system
-  # The package's org.scx.Loader D-Bus activation file starts the loader only
-  # when a client requests it.  Do not enable the unit at boot: doing so makes
-  # sched_ext a boot dependency and defeats the on-demand broker contract.
-  desktop_log "configured scx-scheds scheduler=scx_flash loader=org.scx.Loader activation=on-demand enabled=${desktop_scx_enabled}"
+  case "$desktop_scx_mode" in
+    direct)
+      desktop_disable_unit_if_available scx_loader.service system
+      # Direct mode owns the long-running scheduler at boot. The loader remains
+      # installed for diagnostics/manual recovery but cannot race this unit.
+      desktop_enable_unit_if_available scx.service system
+      desktop_log "configured scx-scheds scheduler=scx_rusty activation=boot mode=direct enabled=${desktop_scx_enabled}"
+      ;;
+    on-demand)
+      # The loader is the sole boot owner. Its packaged Type=dbus service
+      # starts the configured default scheduler when it registers the bus name;
+      # enabling it through multi-user.target makes that startup automatic.
+      desktop_disable_unit_if_available scx.service system
+      desktop_enable_unit_if_available scx_loader.service system
+      desktop_log "configured scx-scheds scheduler=scx_rusty loader=scx_loader.service activation=boot mode=on-demand devops_switch=scx_flash enabled=${desktop_scx_enabled}"
+      ;;
+  esac
 )

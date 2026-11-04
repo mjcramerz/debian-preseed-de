@@ -108,6 +108,10 @@ case "${HARDWARE_CPU_SCHEDULER_SCX_ENABLE:-false}" in
   true|false) ;;
   *) software_fatal "HARDWARE_CPU_SCHEDULER_SCX_ENABLE must be true or false" ;;
 esac
+case "${HARDWARE_CPU_SCHEDULER_SCX_MODE:-on-demand}" in
+  direct|on-demand) ;;
+  *) software_fatal "HARDWARE_CPU_SCHEDULER_SCX_MODE must be direct or on-demand" ;;
+esac
 software_addon_selected=false
 if installer_selected_class_reference_is_selected addon/software 2>/dev/null; then
   software_addon_selected=true
@@ -1515,8 +1519,12 @@ software_install_scx_scheduler() {
     "$scx_deb" \
     scx \
     amd64 \
-    /usr/bin/scx_flash \
+    /usr/bin/scx_rusty \
     ""
+  # The loader's boot default and the DevOps handoff are deliberately
+  # separate binaries. Reject a partial package before desktop activation.
+  chroot "$target_root" /usr/bin/test -x /usr/bin/scx_flash ||
+    software_fatal "scx scheduler package is missing the DevOps handoff binary: /usr/bin/scx_flash"
   software_install_deb \
     "scx-loader" \
     "$scx_loader_deb" \

@@ -389,7 +389,7 @@ class IntegrationContractTests(unittest.TestCase):
         generic = payload_read_text(
             TARGET / 'usr/local/lib/python3.14/dist-packages/labwc_managed_app/generic.py')
         self.assertIn("$self->config->require_tool('wayland_app')", runtime)
-        self.assertIn("'SDL_VIDEODRIVER=wayland'", runtime)
+        self.assertIn("'SDL_VIDEO_DRIVER=wayland'", runtime)
         self.assertIn("'--hwdec=auto'", runtime)
         self.assertIn('"/usr/bin/systemd-run", "--user", "--quiet", "--collect"', generic)
         self.assertIn('"--slice=app.slice"', generic)

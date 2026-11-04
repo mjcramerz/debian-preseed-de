@@ -254,6 +254,78 @@ devops_de_environment_is_active() {
     [ -n "${PATH:-}" ]
 }
 
+# Switch the system loader to the scheduler that is tuned for interactive
+# build and toolchain work. This is a best-effort side effect of entering the
+# shell: scheduler availability must never prevent the shell itself from
+# opening. All arguments are fixed, output is bounded and suppressed, and the
+# postcondition is checked without retrying an uncertain mutation.
+devops_de_select_scx_scheduler() {
+  case "$#" in
+    0) ;;
+    *) return 64 ;;
+  esac
+
+  [ -x /usr/bin/scxctl ] && [ -x /usr/bin/timeout ] || {
+    printf '%s\n' 'devops: scx_loader control client is unavailable' >&2
+    return 69
+  }
+
+  devops_de_scx_state=$(
+    /usr/bin/timeout --signal=TERM --kill-after=2s 10s \
+      /usr/bin/scxctl get 2>/dev/null
+  ) || {
+    printf '%s\n' 'devops: could not query scx_loader; continuing without scheduler handoff' >&2
+    return 69
+  }
+
+  case "$devops_de_scx_state" in
+    "running Flash"|"running Flash "*)
+      printf '%s\n' 'DevOps scheduler already active: scx_flash'
+      return 0
+      ;;
+    'no scx scheduler running')
+      /usr/bin/timeout --signal=TERM --kill-after=2s 10s \
+        /usr/bin/scxctl start --sched scx_flash --mode auto \
+        >/dev/null 2>&1 || {
+          printf '%s\n' 'devops: scx_loader could not start scx_flash; continuing' >&2
+          return 69
+        }
+      ;;
+    'running '*)
+      /usr/bin/timeout --signal=TERM --kill-after=2s 10s \
+        /usr/bin/scxctl switch --sched scx_flash --mode auto \
+        >/dev/null 2>&1 || {
+          printf '%s\n' 'devops: scx_loader could not switch to scx_flash; continuing' >&2
+          return 69
+        }
+      ;;
+    *)
+      printf '%s\n' 'devops: scx_loader returned an unrecognized state; continuing' >&2
+      return 69
+      ;;
+  esac
+
+  # scxctl reports the loader state after its D-Bus request. A failed or stale
+  # state is outcome-unknown, so do not retry and risk a second transition.
+  devops_de_scx_state=$(
+    /usr/bin/timeout --signal=TERM --kill-after=2s 10s \
+      /usr/bin/scxctl get 2>/dev/null
+  ) || {
+    printf '%s\n' 'devops: scx_loader handoff outcome is unknown; continuing' >&2
+    return 69
+  }
+  case "$devops_de_scx_state" in
+    "running Flash"|"running Flash "*)
+      printf '%s\n' 'DevOps scheduler selected: scx_flash'
+      return 0
+      ;;
+    *)
+      printf '%s\n' 'devops: scx_loader did not report scx_flash after handoff; continuing' >&2
+      return 69
+      ;;
+  esac
+}
+
 # Managed environment construction.
 # This public shell helper deliberately rejects all arguments.
 # shellcheck disable=SC2120
@@ -797,6 +869,9 @@ devops_de_activate() (
   devops_de_push_terminal_title || return 1
   devops_de_title_pushed=1
   devops_de_set_terminal_title || return 1
+  if ! devops_de_select_scx_scheduler; then
+    printf '%s\n' 'DevOps scheduler handoff unavailable; the shell remains usable' >&2
+  fi
   printf '%s\n' 'Entering DevOps environment; run devops or exit to return'
 
   # Foreground call: the helper watches this activation SUBSHELL's real PID.

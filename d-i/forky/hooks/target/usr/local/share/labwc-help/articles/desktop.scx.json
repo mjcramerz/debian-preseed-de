@@ -3,7 +3,7 @@
   "blocks": [
     {
       "type": "paragraph",
-      "text": "The desktop can use the profile-pinned scx and scx-loader Debian packages. Each package receives a local dpkg-sig _gpgorigin signature and is published through a signed APT source whose Release metadata covers the package hashes. APT verifies the signed source metadata; the embedded package signature is an additional package-level attestation. The scx_loader configuration is staged only when the selected host profile opts in; both backend units remain disabled and org.scx.Loader activates the loader on demand. sched_ext can replace the kernel's normal CPU scheduling policy at runtime. Help only documents the commands; it never starts, stops, or switches a scheduler."
+      "text": "The desktop can use the profile-pinned scx and scx-loader Debian packages. Each package receives a local dpkg-sig _gpgorigin signature and is published through a signed APT source whose Release metadata covers the package hashes. APT verifies the signed source metadata; the embedded package signature is an additional package-level attestation. When the selected host profile opts in, scx_loader.service is enabled for automatic startup and launches the configured default through its D-Bus loader. sched_ext can replace the kernel's normal CPU scheduling policy at runtime. Help only documents the commands; it never starts, stops, or switches a scheduler."
     },
     {
       "type": "heading",
@@ -13,8 +13,9 @@
     {
       "type": "list",
       "items": [
-        "The loader reads /etc/scx_loader/config.toml. The managed default scheduler is scx_flash and its default mode is Auto.",
-        "The scx_loader.service and scx.service are separate backends. The system profile keeps both units disabled; when the host profile opts in, org.scx.Loader starts the loader only when a client requests it. Do not run both backends together.",
+        "The loader reads /etc/scx_loader/config.toml. The managed default scheduler is scx_rusty and its default mode is Auto; scx_rusty is the long-running general-purpose profile.",
+        "The scx_loader.service and scx.service are separate backends. The opted-in system profile enables scx_loader.service and disables scx.service, so only one backend owns sched_ext. Entering the DevOps shell requests an idempotent switch to scx_flash through scxctl.",
+        "The pinned scx-loader release advertises scx_beerland, scx_bpfland, scx_cake, scx_cosmos, scx_eevdf, scx_flash, scx_flow, scx_forge, scx_lavd, scx_mlfq, scx_pandemonium, scx_p2dq, scx_tickless, scx_rustland, and scx_rusty. scx_bore and scx_bored are not in this release; use scxctl list to inspect the installed loader instead of guessing a name.",
         "The units have a sched_ext feature condition. A kernel without /sys/kernel/sched_ext stays on its normal scheduler instead of repeatedly failing at boot."
       ]
     },
@@ -25,7 +26,7 @@
     },
     {
       "type": "code",
-      "text": "systemctl status scx_loader.service --no-pager\n/usr/bin/scxctl get\njournalctl -u scx_loader.service -b"
+      "text": "systemctl status scx_loader.service --no-pager\n/usr/bin/scxctl list\n/usr/bin/scxctl get\njournalctl -u scx_loader.service -b"
     },
     {
       "type": "paragraph",

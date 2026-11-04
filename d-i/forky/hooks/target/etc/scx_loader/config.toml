@@ -1,4 +1,5 @@
-# Managed SCX loader defaults. The loader unit is opt-in, but manual starts
-# have a deterministic scheduler and mode once the unit is enabled.
-default_sched = "scx_flash"
+# Managed SCX loader defaults. scx_loader starts this scheduler when its
+# systemd unit reaches multi-user.target. Keep the default general-purpose and
+# long-running; workload-specific shells switch through the D-Bus client.
+default_sched = "scx_rusty"
 default_mode = "Auto"

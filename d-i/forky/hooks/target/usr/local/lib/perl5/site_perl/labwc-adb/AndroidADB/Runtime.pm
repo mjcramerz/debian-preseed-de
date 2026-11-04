@@ -300,7 +300,7 @@ sub run_action {
             'auto',
             '--',
             '/usr/bin/env',
-            'SDL_VIDEODRIVER=wayland',
+            'SDL_VIDEO_DRIVER=wayland',
             $self->config->require_tool('scrcpy'),
             '--serial=' . $arguments[0],
             '--video-codec=h264',

@@ -209,6 +209,16 @@ choose_samsung_firmware_directory() {
     "${HOME%/}/Android/adb/samsung-firmware/"
 }
 
+menu_mode=${1:-all}
+case "$menu_mode" in
+  all|server|devices|files|diagnostics|wireless|recovery|fastboot|scrcpy) ;;
+  *) fatal "usage: labwc-adb-menu [all|server|devices|files|diagnostics|wireless|recovery|fastboot|scrcpy]" ;;
+esac
+single_category=false
+if [ "$menu_mode" != all ]; then
+  single_category=true
+fi
+
 command -v labwc-adb-action >/dev/null 2>&1 ||
   fatal "labwc-adb-action is not installed"
 command -v labwc-fuzzel >/dev/null 2>&1 ||
@@ -217,20 +227,39 @@ command -v labwc-fuzzel >/dev/null 2>&1 ||
 [ "$(id -u)" -ne 0 ] ||
   fatal "labwc-adb-menu must run as the logged-in desktop user"
 
+if [ "$menu_mode" = scrcpy ]; then
+  device_serial=$(choose_device) || exit "$?"
+  run_adb_action mirror-screen "$device_serial"
+  exit 0
+fi
+
 while :; do
-  category=$(
-    choose_lines \
-      "Android Debug Bridge" \
-      '⮞ ADB Server' \
-      '⮞ Devices & Shell' \
-      '⮞ Files & Applications' \
-      '⮞ Diagnostics & Capture' \
-      '⮞ Wireless Debugging' \
-      '⮞ Port Forwarding' \
-      '⮞ Reboot & Recovery' \
-      '⮞ Fastboot' \
-      '← Back'
-  ) || exit "$?"
+  if [ "$menu_mode" = all ]; then
+    category=$(
+      choose_lines \
+        "Android Debug Bridge" \
+        '⮞ ADB Server' \
+        '⮞ Devices & Shell' \
+        '⮞ Files & Applications' \
+        '⮞ Diagnostics & Capture' \
+        '⮞ Wireless Debugging' \
+        '⮞ Port Forwarding' \
+        '⮞ Reboot & Recovery' \
+        '⮞ Fastboot' \
+        '← Back'
+    ) || exit "$?"
+  else
+    case "$menu_mode" in
+      server) category='⮞ ADB Server' ;;
+      devices) category='⮞ Devices & Shell' ;;
+      files) category='⮞ Files & Applications' ;;
+      diagnostics) category='⮞ Diagnostics & Capture' ;;
+      wireless) category='⮞ Wireless Debugging' ;;
+      recovery) category='⮞ Reboot & Recovery' ;;
+      fastboot) category='⮞ Fastboot' ;;
+    esac
+    menu_mode=all
+  fi
 
   case "$category" in
     '⮞ ADB Server')
@@ -281,7 +310,7 @@ while :; do
             'Show Storage Status' \
             'Show CPU and Memory' \
             'List Android Users' \
-            'Mirror and Control Screen' \
+            'Mirror and Control Screen (scrcpy / Wayland)' \
             '← Back'
         ) || exit "$?"
         case "$action" in
@@ -293,7 +322,7 @@ while :; do
           'Show Storage Status') run_adb_action storage-status "$device_serial" ;;
           'Show CPU and Memory') run_adb_action cpu-memory "$device_serial" ;;
           'List Android Users') run_adb_action list-android-users "$device_serial" ;;
-          'Mirror and Control Screen') run_adb_action mirror-screen "$device_serial" ;;
+          'Mirror and Control Screen (scrcpy / Wayland)') run_adb_action mirror-screen "$device_serial" ;;
           '← Back'|'') break ;;
         esac
       done
@@ -629,4 +658,7 @@ while :; do
       exit 0
       ;;
   esac
+  if [ "$single_category" = true ]; then
+    exit 0
+  fi
 done
