@@ -3,7 +3,7 @@
   "blocks": [
     {
       "type": "paragraph",
-      "text": "Btrfs profiles use the installer's managed filesystem and subvolume layout. Filesystem allocation, metadata usage and ordinary file sizes are different measurements. Use Computer Management → System & Recovery → Maintenance & Health → Storage & Filesystems for the configured views."
+      "text": "Btrfs profiles use the configured filesystem and subvolume layout. Filesystem allocation, metadata usage and ordinary file sizes are different measurements. Use Computer Management → System & Recovery → Maintenance & Health → Storage & Filesystems for the configured views."
     },
     {
       "type": "code",

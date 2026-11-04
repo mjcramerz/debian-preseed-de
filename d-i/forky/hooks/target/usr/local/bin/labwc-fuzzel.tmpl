@@ -26,7 +26,6 @@ from typing import BinaryIO
 
 MENU_FAILURE_STATUS = 2
 MENU_DISMISSED_STATUS = 3
-HELP_LAUNCHER = '/usr/local/bin/labwc-help'
 MAX_INPUT = 1048576
 MAX_ROWS = 1024
 MAX_ROW = 4096
@@ -846,124 +845,6 @@ def back_choice(label: str) -> bool:
         re.fullmatch(r'[0-9]+[ \t\v\f]+Close', label))
 
 
-def help_topic(prompt: str) -> str:
-    """Map fixed menu prompts to reviewed offline documentation topics."""
-    prompt = prompt.rstrip(' :>\t')
-    if prompt in {'Main Menu', 'Desktop Settings'}:
-        return 'desktop.fuzzel'
-    if prompt.startswith('Computer Management'):
-        if 'Network Sharing' in prompt:
-            return 'network.sharing'
-        if 'Network Discovery' in prompt or 'Network Scan' in prompt:
-            return 'troubleshooting.network'
-        if 'Network' in prompt:
-            return 'network.connections'
-        if 'Firewall' in prompt:
-            return 'security.firewall'
-        if 'Security & Accounts' in prompt or 'Users' in prompt or 'Groups' in prompt:
-            return 'security.authentication'
-        if 'AppArmor' in prompt or 'Security' in prompt:
-            return 'security.apparmor'
-        if 'Recovery' in prompt or 'Storage' in prompt:
-            return 'storage.recovery'
-        if 'Containers' in prompt:
-            return 'applications.podman'
-        if 'Files' in prompt:
-            return 'applications.files'
-        if 'Devices & Desktop' in prompt:
-            return 'desktop.appearance'
-        if 'Desktop Appearance' in prompt:
-            return 'desktop.appearance'
-        return 'maintenance.management'
-    if prompt.startswith('Maintenance /'):
-        if 'Audio' in prompt:
-            return 'troubleshooting.audio'
-        if 'Network' in prompt:
-            return 'network.connections'
-        if 'Storage' in prompt:
-            return 'storage.btrfs'
-        if 'Services' in prompt:
-            return 'maintenance.services'
-        if 'Packages' in prompt:
-            return 'maintenance.updates'
-        return 'maintenance.management'
-    if prompt.startswith('Recovery /'):
-        if 'Snapshots' in prompt:
-            return 'storage.timeshift'
-        if 'Packages' in prompt:
-            return 'maintenance.updates'
-        if 'Desktop' in prompt:
-            return 'maintenance.services'
-        return 'storage.recovery'
-    if 'Firewall' in prompt:
-        return 'security.firewall'
-    if 'AppArmor' in prompt or 'Endpoint Security' in prompt:
-        return 'security.apparmor'
-    if 'Users' in prompt or 'Groups' in prompt or 'Authentication' in prompt:
-        return 'security.authentication'
-    if 'Network Discovery' in prompt or 'Network Scan' in prompt or 'Scanning' in prompt or 'Capture interface' in prompt:
-        return 'troubleshooting.network'
-    if 'Whisper' in prompt or 'PipeWire' in prompt or 'WirePlumber' in prompt:
-        return 'troubleshooting.audio'
-    if 'Codex' in prompt:
-        return 'applications.codex'
-    if 'Tomat' in prompt:
-        return 'desktop.tomat'
-    if 'Wayscriber' in prompt:
-        return 'desktop.wayscriber'
-    if 'Calendar' in prompt:
-        return 'desktop.calendar'
-    if 'Mako' in prompt:
-        return 'desktop.mako'
-    if 'Waybar' in prompt:
-        return 'desktop.waybar'
-    if 'Appearance' in prompt or 'Theme' in prompt:
-        return 'desktop.appearance'
-    if 'Remote Desktop' in prompt or 'FreeRDP' in prompt:
-        return 'troubleshooting.applications'
-    if 'Brightness' in prompt or 'Display' in prompt or 'Monitor' in prompt:
-        return 'hardware.monitors'
-    if 'Bluetooth' in prompt or 'ADB' in prompt or 'Android' in prompt:
-        return 'hardware.peripherals'
-    if 'Timeshift' in prompt or 'Snapshot' in prompt:
-        return 'storage.timeshift'
-    if 'Btrfs' in prompt:
-        return 'storage.btrfs'
-    if 'Backup' in prompt:
-        return 'storage.backups'
-    if 'External' in prompt or 'Storage' in prompt or 'Drive' in prompt or 'Disk' in prompt or 'NVMe' in prompt:
-        return 'storage.recovery'
-    if prompt in {'Desktop Appearance'}:
-        return 'desktop.appearance'
-    if prompt in {'Network Management', 'Connection Profiles', 'VPN Connections',
-                  'WireGuard Connections', 'DNS Configuration'}:
-        return 'network.connections'
-    if prompt in {'Maintenance', 'Recovery', 'Endpoint Security',
-                  'System', 'AppArmor — Policy Tools'}:
-        return 'maintenance.management'
-    if prompt in {'Rootless devops containers', 'Containers', 'Container',
-                  'Images', 'Volumes', 'Networks'}:
-        return 'applications.podman'
-    if prompt in {'ADB Server', 'Android Devices', 'Bluetooth Devices',
-                  'Hardware Tuning'}:
-        return 'hardware.peripherals'
-    if prompt in {'Power', 'Power Profile'}:
-        return 'hardware.power'
-    if prompt in {'Audio', 'Audio Control'}:
-        return 'troubleshooting.audio'
-    if prompt in {'Tomat', 'Tomat settings'}:
-        return 'desktop.tomat'
-    if prompt in {'Wayscriber', 'Wayscriber settings'}:
-        return 'desktop.wayscriber'
-    if any(word in prompt.casefold() for word in ('diagnostic', 'debug', 'inspector', 'qt/qpa', 'ozone logs')):
-        return 'troubleshooting.applications'
-    if prompt in {'Digital Assets', 'DOCX Actions', 'PDF Actions', 'Image Actions'}:
-        return 'applications.files'
-    if prompt in {'Remote Desktop', 'FreeRDP'}:
-        return 'troubleshooting.applications'
-    return 'desktop.labwc'
-
-
 def managed_rows(rows: list[bytes], options: Options) -> tuple[bytes, dict[bytes, bytes]]:
     mapping: dict[bytes, bytes] = {}
     display = []
@@ -1101,20 +982,6 @@ def invoke(options: Options, argv: list[str], root: Path) -> int:
             # Choice menus may supply their own icon metadata. Compare only
             # their visible labels, preserving the original protocol bytes.
             # Text entry, confirmation and NUL-separated protocols stay intact.
-            help_offered = False
-            if (options.scope != 'computer-management'
-                    and not options.nul_delimited and not options.power_confirmation
-                    and os.environ.get('LABWC_MENU_INPUT_MODE') != 'text'
-                    and any(row.partition(b'\0')[0] for row in rows)):
-                help_offered = any(row.partition(b'\0')[0] == b'Help' for row in rows)
-                if not help_offered:
-                    extra = (b'Help' if managed else
-                             b'Help\0icon\x1f__THEME_FUZZEL_MENU_ACTION_HELP_ICON_NAME__')
-                    if len(rows) < MAX_ROWS and len(data) + len(extra) + 2 <= MAX_INPUT:
-                        rows.append(extra)
-                        if not managed:
-                            data = b'\n'.join(rows) + b'\n'
-                        help_offered = True
             mapping = {}
             if managed:
                 data, mapping = managed_rows(rows, options)
@@ -1141,14 +1008,6 @@ def invoke(options: Options, argv: list[str], root: Path) -> int:
             if status == 0:
                 chosen = selected_row(selection, nul_delimited=options.nul_delimited,
                                       managed=managed)
-                if options.scope != 'computer-management' and help_offered and chosen == b'Help':
-                    launch = subprocess.run(
-                        [HELP_LAUNCHER, '--topic', help_topic(options.prompt)],
-                        stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL,
-                        stderr=subprocess.DEVNULL, check=False, timeout=10,
-                    )
-                    return (MENU_DISMISSED_STATUS if launch.returncode == 0
-                            else MENU_FAILURE_STATUS)
                 if managed and chosen in mapping and mapping[chosen] == b'':
                     # The synthetic Back row has no raw action. Preserve the
                     # public Back contract instead of turning it into an empty

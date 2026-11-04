@@ -241,7 +241,7 @@ class HelpStaticContracts(unittest.TestCase):
         self.assertNotIn("'Display Help'", computer)
         fuzzel = (TARGET / "usr/local/bin/labwc-fuzzel.tmpl").read_text(encoding="utf-8")
         self.assertIn('label == "Help"', fuzzel)
-        self.assertIn("options.scope != 'computer-management'", fuzzel)
+        self.assertNotIn("LABWC_FUZZEL_SUPPRESS_HELP", fuzzel)
         apparmor = (TARGET / "etc/apparmor.d/desktop-wrappers.tmpl").read_text(encoding="utf-8")
         self.assertIn("/usr/local/bin/labwc-help rPx -> labwc-help", apparmor)
         self.assertIn("/usr/local/bin/labwc-help rPx -> labwc-help", (TARGET / "etc/apparmor.d/labwc-appearance").read_text(encoding="utf-8"))
@@ -261,27 +261,23 @@ class HelpStaticContracts(unittest.TestCase):
         self.assertIn("desktop.tomat", staging)
         self.assertIn("desktop.wayscriber", staging)
 
-    def test_shared_fuzzel_help_is_topic_aware_and_confined(self):
+    def test_help_is_explicit_in_the_three_requested_entry_points(self):
         fuzzel = (TARGET / "usr/local/bin/labwc-fuzzel.tmpl").read_text(encoding="utf-8")
-        self.assertIn("def help_topic(prompt: str) -> str:", fuzzel)
-        self.assertIn("[HELP_LAUNCHER, '--topic', help_topic(options.prompt)]", fuzzel)
-        self.assertIn("prompt = prompt.rstrip(' :>\\t')", fuzzel)
-        self.assertIn("os.environ.get('LABWC_MENU_INPUT_MODE') != 'text'", fuzzel)
-        self.assertIn("not options.power_confirmation", fuzzel)
-        self.assertIn("if options.scope != 'computer-management' and help_offered and chosen == b'Help':", fuzzel)
+        self.assertNotIn("HELP_LAUNCHER", fuzzel)
+        self.assertNotIn("def help_topic", fuzzel)
+        self.assertNotIn("help_offered", fuzzel)
+        self.assertNotIn("LABWC_FUZZEL_SUPPRESS_HELP", fuzzel)
         self.assertIn("os.environ.pop('LABWC_MENU_ACTION_WAIT', None)", (TARGET / "usr/local/bin/labwc-help").read_text(encoding="utf-8"))
-        self.assertIn("'desktop.tomat'", fuzzel)
-        self.assertIn("'desktop.wayscriber'", fuzzel)
-        for topic in (
-                "'troubleshooting.audio'", "'troubleshooting.network'",
-                "'applications.codex'", "'security.apparmor'",
-                "'security.firewall'", "'security.authentication'",
-                "'storage.recovery'", "'storage.btrfs'", "'storage.timeshift'",
-                "'maintenance.services'", "'maintenance.updates'",
-                "'desktop.calendar'", "'desktop.mako'", "'desktop.waybar'",
-                "'hardware.monitors'", "'hardware.peripherals'",
-        ):
-            self.assertIn(topic, fuzzel)
+        main_menu = (TARGET / "usr/local/bin/labwc-main-menu.tmpl").read_text(encoding="utf-8")
+        self.assertIn("'Help': ('/usr/local/bin/labwc-help', '--topic', 'desktop.fuzzel')", main_menu)
+        self.assertNotIn("LABWC_FUZZEL_SUPPRESS_HELP", main_menu)
+        desktop_menu = (TARGET / "etc/skel-desktop/.config/labwc/menu.xml.tmpl").read_text(encoding="utf-8")
+        self.assertIn('label="Help" icon="__THEME_LABWC_MENU_HELP_ICON_NAME__"', desktop_menu)
+        waybar_menu = (TARGET / "etc/skel-desktop/.config/waybar/gtk/system-menu.xml.tmpl").read_text(encoding="utf-8")
+        self.assertIn('id="help_help"', waybar_menu)
+        self.assertIn('<property name="label">Help</property>', waybar_menu)
+        desktop_entry = (TARGET / "usr/local/share/applications/labwc-help.desktop.tmpl").read_text(encoding="utf-8")
+        self.assertIn("NoDisplay=true", desktop_entry)
         policy = (TARGET / "etc/apparmor.d/desktop-wrappers.tmpl").read_text(encoding="utf-8")
         self.assertIn("/usr/local/bin/labwc-help rPx -> labwc-help", policy)
 

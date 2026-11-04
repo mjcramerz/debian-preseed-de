@@ -12,6 +12,18 @@ window#L3afpad textview.view selection {
   color: #ffffff;
 }
 
+/* GtkSourceView renders line numbers in the left gutter. Keep that gutter
+ * distinct from the editor surface without using the white default text. */
+window#L3afpad textview.view gutter.left {
+  background-color: #160d2b;
+  color: #b9a7dc;
+}
+
+window#L3afpad textview.view gutter.left > widget {
+  background-color: #160d2b;
+  color: #b9a7dc;
+}
+
 window#L3afpad entry {
   background-color: #202938;
   color: #e5edf8;

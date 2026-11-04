@@ -21,7 +21,7 @@
     },
     {
       "type": "paragraph",
-      "text": "Fuzzel configuration lives under ~/.config/fuzzel/. Desktop Appearance controls supported colors and icons. If a new application is absent, check its package installation and desktop metadata. Use the existing launcher refresh action after an intentional installation; do not replace Exec fields with shell strings."
+      "text": "Fuzzel configuration lives under ~/.config/fuzzel/. Desktop Appearance controls supported colors and icons. If a new application is absent, check its package availability and desktop metadata. Use the existing launcher refresh action after an intentional package change; do not replace Exec fields with shell strings."
     }
   ]
 }

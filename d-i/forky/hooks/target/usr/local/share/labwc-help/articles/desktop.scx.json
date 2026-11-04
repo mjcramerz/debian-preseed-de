@@ -3,7 +3,7 @@
   "blocks": [
     {
       "type": "paragraph",
-      "text": "This installation can use the profile-pinned scx and scx-loader Debian packages. Each package receives a local dpkg-sig _gpgorigin signature and is imported into the local APT repository, whose signed Release metadata covers the published package hashes. APT verifies the signed repository metadata; the embedded package signature is an additional package-level attestation. The managed scx_loader configuration is installed only when the selected host profile opts in. sched_ext can replace the kernel's normal CPU scheduling policy at runtime. Help only documents the commands; it never starts, stops, or switches a scheduler."
+      "text": "The desktop can use the profile-pinned scx and scx-loader Debian packages. Each package receives a local dpkg-sig _gpgorigin signature and is published through a signed APT source whose Release metadata covers the package hashes. APT verifies the signed source metadata; the embedded package signature is an additional package-level attestation. The scx_loader configuration is enabled only when the selected host profile opts in. sched_ext can replace the kernel's normal CPU scheduling policy at runtime. Help only documents the commands; it never starts, stops, or switches a scheduler."
     },
     {
       "type": "heading",
@@ -14,7 +14,7 @@
       "type": "list",
       "items": [
         "The loader reads /etc/scx_loader/config.toml. The managed default scheduler is scx_flash and its default mode is Auto.",
-        "The installed scx_loader.service and scx.service are separate backends. The installer disables the direct service and enables only the loader when the host profile opts in; do not run both backends together.",
+        "The scx_loader.service and scx.service are separate backends. The system profile disables the direct service and enables only the loader when the host profile opts in; do not run both backends together.",
         "The units have a sched_ext feature condition. A kernel without /sys/kernel/sched_ext stays on its normal scheduler instead of repeatedly failing at boot."
       ]
     },

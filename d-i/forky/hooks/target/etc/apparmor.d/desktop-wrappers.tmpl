@@ -4877,6 +4877,9 @@ profile labwc-debug-session /usr/local/libexec/labwc-debug-session flags=(attach
   #include <abstractions/wrapper-terminal>
   #include <abstractions/wrapper-wayland>
   include if exists <abstractions/dbus-session-strict>
+  # The collector reads same-UID process mappings and needs the capability
+  # requested by procps/journal tooling for that read-only evidence path.
+  capability sys_ptrace,
   /usr/local/libexec/labwc-debug-session rix,
   /usr/local/bin/labwc-terminal rPx -> labwc-terminal,
   /usr/bin/{journalctl,wlrctl,systemctl,systemd-run} rix,
@@ -4886,6 +4889,7 @@ profile labwc-debug-session /usr/local/libexec/labwc-debug-session flags=(attach
   owner /run/user/[0-9]*/{bus,systemd/private,wayland-[0-9]*} rw,
   owner /run/user/[0-9]*/labwc-debug/{,**} rwk,
   /etc/machine-id r,
+  @{PROC}/sys/kernel/random/boot_id r,
   /{var/,}run/log/journal/{,**} r,
   /var/log/journal/{,**} r,
   # Only process metadata is read. The implementation restricts candidates to

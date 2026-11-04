@@ -25,7 +25,7 @@
         "What failed: login, application, mount, update or boot.",
         "The time and the relevant sanitized error.",
         "Whether data is still readable and whether an independent backup is available.",
-        "The selected installation/storage profile, when known."
+        "The selected storage profile, when known."
       ]
     },
     {

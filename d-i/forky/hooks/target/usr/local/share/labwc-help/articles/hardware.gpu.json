@@ -3,7 +3,7 @@
   "blocks": [
     {
       "type": "paragraph",
-      "text": "Applications use the repository's managed launchers and profile-selected graphics policy. Intel, AMD and optional NVIDIA support differ by host. Read the related manuals for the selected graphics policy; a driver file is not proof that a GPU is active."
+      "text": "Applications use the configured launchers and profile-selected graphics policy. Intel, AMD and optional NVIDIA support differ by host. Read the related manuals for the selected graphics policy; a driver file is not proof that a GPU is active."
     },
     {
       "type": "heading",

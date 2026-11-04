@@ -21,7 +21,7 @@
     },
     {
       "type": "paragraph",
-      "text": "Reset and preset data comes from the installed managed catalog, not from a source checkout. User settings include ~/.config/labwc, waybar, fuzzel, mako and terminal configuration. If a component does not refresh immediately, save your work and follow its specific refresh/restart action."
+      "text": "Reset and preset data comes from the configured catalog, not from project files. User settings include ~/.config/labwc, waybar, fuzzel, mako and terminal configuration. If a component does not refresh immediately, save your work and follow its specific refresh/restart action."
     },
     {
       "type": "warning",

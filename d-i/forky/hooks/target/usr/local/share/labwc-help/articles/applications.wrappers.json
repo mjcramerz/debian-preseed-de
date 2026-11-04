@@ -1,0 +1,53 @@
+{
+  "version": 1,
+  "blocks": [
+    {
+      "type": "paragraph",
+      "text": "Desktop wrappers give common applications one reviewed launch path. They set the session environment, keep terminal and application lifetimes attached to the owning user service, and pass arguments as an array instead of through a shell."
+    },
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "Launch a native Wayland application"
+    },
+    {
+      "type": "code",
+      "text": "/usr/local/bin/labwc-wayland-app auto -- /usr/bin/thunar\n/usr/local/bin/labwc-terminal --micro ~/.config/wayscriber/config.toml\n/usr/local/bin/labwc-help --topic desktop.waybar"
+    },
+    {
+      "type": "paragraph",
+      "text": "Use the wrapper that matches the application. Keep a file argument explicit and review the path before opening or editing it. The wrapper does not interpret a command string as shell code."
+    },
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "Use the application menu"
+    },
+    {
+      "type": "code",
+      "text": "/usr/local/bin/labwc-main-menu\n/usr/local/bin/labwc-main-menu --debug=gtk\n/usr/local/bin/labwc-main-menu --debug=wayland-graphics"
+    },
+    {
+      "type": "paragraph",
+      "text": "The main menu groups desktop entries and keeps fixed actions such as Terminal, Files, Help and Desktop Settings separate from application discovery. Diagnostic profiles create a bounded local report for the selected application."
+    },
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "Keep the launch path reviewable"
+    },
+    {
+      "type": "list",
+      "items": [
+        "Prefer the menu or the documented wrapper for the application.",
+        "Inspect a desktop entry and its arguments before opening an unfamiliar program.",
+        "Keep private data out of diagnostic reports and copied commands.",
+        "Use the existing service action when a wrapper reports an unavailable or uncertain result."
+      ]
+    },
+    {
+      "type": "warning",
+      "text": "Do not replace a wrapper with shell -c, arbitrary environment overrides or a global Xwayland switch. Private Xwayland diagnostics remain limited to the Zoom and Discord entries."
+    }
+  ]
+}

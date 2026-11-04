@@ -3,29 +3,50 @@
   "blocks": [
     {
       "type": "paragraph",
-      "text": "This installation uses one managed rootless devops Podman engine and a shared Unix API. Docker CLI and Compose use that API. It is not a second rootful Docker daemon. Follow the installed /data/docs/podman-devops.md guide for the selected host."
+      "text": "Podman runs rootless containers from the desktop account. The local client uses a shared Unix API for containers, images, networks and volumes; Docker-compatible commands and Compose clients can use the same engine. Help only documents commands and never contacts the engine."
     },
     {
       "type": "heading",
       "level": 2,
-      "text": "Authority and storage"
+      "text": "Create and run a container"
+    },
+    {
+      "type": "code",
+      "text": "podman run --rm -it --name shell-demo docker.io/library/alpine:3.20 sh"
     },
     {
       "type": "paragraph",
-      "text": "Access to the shared socket grants authority over that engine. Service ownership, storage and namespace networking are managed together. Existing stores must not be reset as a troubleshooting shortcut."
+      "text": "The image reference selects a registry, namespace and tag. --rm removes the stopped container, --name gives it a stable name, and -it connects an interactive terminal. Review an image source and digest before using it with private data."
     },
     {
       "type": "heading",
       "level": 2,
-      "text": "Troubleshooting"
+      "text": "Build, inspect and stop"
+    },
+    {
+      "type": "code",
+      "text": "podman build --tag example-web:dev .\npodman run --detach --name example-web --publish 8080:8080 example-web:dev\npodman ps --all\npodman logs --follow example-web\npodman stop example-web"
     },
     {
       "type": "paragraph",
-      "text": "Use Computer Management → Containers & AI → Containers and the installed guide. Check whether the engine/socket is available before retrying a client operation. Preserve application volumes and any reported recovery directory."
+      "text": "Run the build from the intended project directory. A Containerfile or build hook can execute code, so inspect it before building. Review published ports and stop containers you no longer need."
+    },
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "Volumes and Compose"
+    },
+    {
+      "type": "code",
+      "text": "podman volume create example-data\npodman run --rm --mount type=volume,source=example-data,destination=/var/lib/example docker.io/library/alpine:3.20\npodman compose up --detach\npodman compose down"
+    },
+    {
+      "type": "paragraph",
+      "text": "Volumes outlive individual containers. Compose reads the compose file in the current directory and may create networks, containers and volumes. Check the file and the project secrets before starting it."
     },
     {
       "type": "warning",
-      "text": "Container prune, volume deletion, system reset and storage migration can destroy data. Help never runs containers or changes engine state."
+      "text": "The shared socket grants control over the local engine. Prune, volume removal, image removal and reset operations can destroy data. Do not paste registry credentials into commands or logs."
     }
   ]
 }

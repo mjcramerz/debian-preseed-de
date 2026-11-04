@@ -119,7 +119,7 @@ desktop_stage_help() (
     network.vpn network.tailscale network.sharing network.ssh security.apparmor \
     security.firewall security.authentication storage.btrfs storage.f2fs storage.backups \
     storage.timeshift storage.recovery applications.foot applications.files applications.git \
-    applications.podman applications.development applications.codex maintenance.management \
+    applications.podman applications.incus applications.development applications.wrappers applications.codex maintenance.management \
     maintenance.updates maintenance.services maintenance.logs troubleshooting.desktop \
     troubleshooting.network troubleshooting.audio troubleshooting.applications desktop.scx
   do

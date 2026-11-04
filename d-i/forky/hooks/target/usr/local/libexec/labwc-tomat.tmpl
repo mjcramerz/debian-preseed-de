@@ -586,15 +586,25 @@ def main(argv: list[str]) -> int:
     context = Context()
     if action == "config":
         # Opening a broken file for repair must not require successful TOML parse
-        # or daemon startup. The editor is native Wayland, never Xwayland.
+        # or daemon startup. Use the same managed terminal editor as the
+        # Wayscriber configuration action; this keeps the editing surface
+        # consistent and native Wayland, never Xwayland.
         context.session_ready()
-        environment = dict(context.env, GDK_BACKEND="wayland", QT_QPA_PLATFORM="wayland")
         display = os.environ.get("WAYLAND_DISPLAY", "")
         if not re.fullmatch(r"wayland-[0-9]+", display):
             raise Error("no managed Wayland display is available")
-        environment["WAYLAND_DISPLAY"] = display
-        environment["XDG_SESSION_TYPE"] = "wayland"
-        os.execve("/usr/bin/l3afpad", ["/usr/bin/l3afpad", str(context.config)], environment)
+        environment = dict(
+            context.env,
+            WAYLAND_DISPLAY=display,
+            XDG_SESSION_TYPE="wayland",
+            LABWC_SESSION_OWNER="desktop",
+            LABWC_SESSION_APP="1",
+        )
+        os.execve(
+            "/usr/local/bin/labwc-terminal",
+            ["/usr/local/bin/labwc-terminal", "--micro", str(context.config)],
+            environment,
+        )
     if action == "custom":
         context.ensure()
         context.custom_start()

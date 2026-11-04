@@ -827,25 +827,48 @@
     {
       "id": "applications.podman",
       "category": "applications",
-      "title": "Optional Podman and development containers",
-      "summary": "Use the shared rootless devops engine.",
+      "title": "Podman containers",
+      "summary": "Run rootless containers, images, volumes, and Compose projects.",
       "related": [
         "applications.development",
+        "applications.incus",
         "security.firewall",
         "storage.backups"
       ],
       "keywords": [
-        "optional",
         "podman",
-        "and",
-        "development",
         "containers",
-        "applications"
+        "images",
+        "volumes",
+        "compose"
       ],
       "order": 31,
       "icon": "__THEME_LABWC_HELP_CATEGORY_APPLICATIONS_ICON_NAME__",
       "file": "articles/applications.podman.json",
       "updated": "2026-11-01"
+    },
+    {
+      "id": "applications.incus",
+      "category": "applications",
+      "title": "Incus containers and virtual machines",
+      "summary": "Launch, inspect, transfer files, and manage Incus instances.",
+      "related": [
+        "applications.podman",
+        "applications.development",
+        "network.connections"
+      ],
+      "keywords": [
+        "incus",
+        "containers",
+        "virtual-machines",
+        "instances",
+        "profiles",
+        "storage"
+      ],
+      "order": 32,
+      "icon": "__THEME_LABWC_HELP_CATEGORY_APPLICATIONS_ICON_NAME__",
+      "file": "articles/applications.incus.json",
+      "updated": "2026-11-04"
     },
     {
       "id": "applications.development",
@@ -855,6 +878,8 @@
       "related": [
         "applications.git",
         "applications.podman",
+        "applications.incus",
+        "applications.wrappers",
         "applications.codex"
       ],
       "keywords": [
@@ -862,16 +887,38 @@
         "tools",
         "applications"
       ],
-      "order": 32,
+      "order": 33,
       "icon": "__THEME_LABWC_HELP_CATEGORY_APPLICATIONS_ICON_NAME__",
       "file": "articles/applications.development.json",
       "updated": "2026-11-01"
     },
     {
+      "id": "applications.wrappers",
+      "category": "applications",
+      "title": "Desktop wrappers and launch paths",
+      "summary": "Use native launchers, terminal wrappers, and bounded diagnostics.",
+      "related": [
+        "applications.development",
+        "desktop.waybar",
+        "troubleshooting.applications"
+      ],
+      "keywords": [
+        "wrappers",
+        "launchers",
+        "native",
+        "wayland",
+        "diagnostics"
+      ],
+      "order": 35,
+      "icon": "__THEME_LABWC_HELP_CATEGORY_APPLICATIONS_ICON_NAME__",
+      "file": "articles/applications.wrappers.json",
+      "updated": "2026-11-04"
+    },
+    {
       "id": "applications.codex",
       "category": "applications",
-      "title": "Codex and AI tools",
-      "summary": "Use the managed AI entry points with explicit data boundaries.",
+      "title": "Codex CLI and app server",
+      "summary": "Inspect Codex health, features, sessions, and app-server daemons.",
       "related": [
         "applications.development",
         "security.authentication",
@@ -884,7 +931,7 @@
         "tools",
         "applications"
       ],
-      "order": 33,
+      "order": 34,
       "icon": "__THEME_LABWC_HELP_CATEGORY_APPLICATIONS_ICON_NAME__",
       "file": "articles/applications.codex.json",
       "updated": "2026-11-01"

@@ -42,7 +42,7 @@
     },
     {
       "type": "paragraph",
-      "text": "Private reading state normally lives in ~/.local/state/labwc-help/state.json. Help requires a private state directory and preserves unsafe or unreadable existing state. If preferences cannot be saved, reading remains available with temporary settings. Documentation is root-owned under /usr/local/share/labwc-help and is updated with the managed installation assets."
+      "text": "Private reading state normally lives in ~/.local/state/labwc-help/state.json. Help requires a private state directory and preserves unsafe or unreadable existing state. If preferences cannot be saved, reading remains available with temporary settings. Documentation is root-owned under /usr/local/share/labwc-help and is updated with the desktop documentation assets."
     },
     {
       "type": "heading",

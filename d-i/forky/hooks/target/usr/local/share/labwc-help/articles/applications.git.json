@@ -3,7 +3,7 @@
   "blocks": [
     {
       "type": "paragraph",
-      "text": "Git records project history. Start by checking the repository and local changes before switching branches or applying someone else's patch. Managed git-ssh and key-manager workflows keep authentication separate from source content."
+      "text": "Git records project history. Start by checking the project and local changes before switching branches or applying someone else's patch. Managed git-ssh and key-manager workflows keep authentication separate from source content."
     },
     {
       "type": "code",
@@ -16,7 +16,7 @@
     },
     {
       "type": "paragraph",
-      "text": "Managed user Git preferences live in ~/.config/git/config; Git also supports ~/.gitconfig. Repository settings live in .git/config. Repository hooks and build scripts can execute code. Inspect unfamiliar projects before running their commands."
+      "text": "Managed user Git preferences live in ~/.config/git/config; Git also supports ~/.gitconfig. Project settings live in .git/config. Project hooks and build scripts can execute code. Inspect unfamiliar projects before running their commands."
     },
     {
       "type": "heading",
@@ -29,7 +29,7 @@
     },
     {
       "type": "warning",
-      "text": "Diffs and repository URLs can contain credentials or private content. Review them before sharing. Never commit secrets."
+      "text": "Diffs and project URLs can contain credentials or private content. Review them before sharing. Never commit secrets."
     }
   ]
 }

@@ -3,7 +3,7 @@
   "blocks": [
     {
       "type": "paragraph",
-      "text": "Computer Management groups System & Recovery, Network & Remote, Security & Accounts, Devices & Desktop, Containers & AI, and Files & Documents. Menu choices delegate to the repository's existing fixed helpers."
+      "text": "Computer Management groups System & Recovery, Network & Remote, Security & Accounts, Devices & Desktop, Containers & AI, and Files & Documents. Menu choices delegate to the existing fixed helpers."
     },
     {
       "type": "heading",

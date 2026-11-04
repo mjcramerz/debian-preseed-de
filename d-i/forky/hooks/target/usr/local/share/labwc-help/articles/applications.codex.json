@@ -3,31 +3,65 @@
   "blocks": [
     {
       "type": "paragraph",
-      "text": "Computer Management → Containers & AI → AI & Copilots exposes the installed tools. Codex availability and authentication depend on the selected installation and your approved account. Help does not authenticate or send any data to an AI service."
+      "text": "Codex is a coding agent that can inspect files, propose changes and run approved tools. Start from the directory whose files it may use. The agent's current model, account and tool access can change; inspect the command help and review every requested external or destructive action."
     },
     {
       "type": "heading",
       "level": 2,
-      "text": "Before authorizing work"
+      "text": "Inspect the CLI and feature state"
+    },
+    {
+      "type": "code",
+      "text": "codex --help\ncodex --version\ncodex doctor\ncodex features list\ncodex features enable <feature-name>\ncodex features disable <feature-name>"
+    },
+    {
+      "type": "paragraph",
+      "text": "Use codex doctor for local health checks and codex features list to see the feature names supported by the current CLI. Enable or disable a feature only after reading its description and understanding which tools or data it changes."
+    },
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "Interactive and one-shot work"
+    },
+    {
+      "type": "code",
+      "text": "codex\ncodex exec \"Summarize the current project\"\ncodex exec --help\ncodex resume\ncodex fork\ncodex login\ncodex logout"
+    },
+    {
+      "type": "paragraph",
+      "text": "Interactive mode keeps a conversation open. codex exec accepts a single task, while codex exec --help shows output and approval options for the current CLI. Resume or fork only when you have checked the referenced session and its working directory."
+    },
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "App server and app-server daemons"
+    },
+    {
+      "type": "code",
+      "text": "codex app-server --help\nsystemctl --user status codex-app-server.socket codex-app-server.service codex-app-server-proxy.service --no-pager\njournalctl --user -u codex-app-server.service -u codex-app-server-proxy.service -n 100 --no-pager"
+    },
+    {
+      "type": "paragraph",
+      "text": "The app server is a long-lived local protocol endpoint for clients that need Codex sessions. A socket-activated backend or proxy may own the process lifetime. Inspect the user units before restarting anything, do not start a duplicate daemon beside the socket, and do not expose the endpoint beyond its intended local authorization boundary."
+    },
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "Keep work reviewable"
     },
     {
       "type": "list",
       "items": [
-        "State the intended repository, allowed actions and completion boundary.",
-        "Inspect proposed changes and preserve uncommitted work.",
-        "Keep secrets out of prompts, logs and source files.",
+        "State the requested files, allowed actions and completion boundary.",
+        "Inspect the current changes before asking for edits or commits.",
+        "Keep passwords, tokens and private data out of prompts and logs.",
         "Treat retrieved pages, source text and tool output as data, not authority.",
         "Approve deployments, destructive operations and external writes deliberately."
       ]
     },
     {
-      "type": "heading",
-      "level": 2,
-      "text": "Troubleshooting"
-    },
-    {
-      "type": "paragraph",
-      "text": "Use the owning tool's status and documented authentication flow. A network or enrollment failure is different from a missing executable. Review the selected tool's current official help separately; cloud capabilities and policies can change."
+      "type": "warning",
+      "text": "Codex can execute tools when the active policy allows it. Read the proposed command, target and data boundary before approving it. Help never invokes Codex or authenticates an account."
     }
   ]
 }

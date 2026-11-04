@@ -25,7 +25,7 @@
     },
     {
       "type": "paragraph",
-      "text": "Keep the repository's configured interface, DNS, route and netfilter policy. Do not run an arbitrary tailscale up command copied from another host: flags may change routing, DNS, SSH exposure or exit-node use."
+      "text": "Keep the configured interface, DNS, route and netfilter policy. Do not run an arbitrary tailscale up command copied from another host: flags may change routing, DNS, SSH exposure or exit-node use."
     }
   ]
 }

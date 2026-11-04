@@ -29,7 +29,7 @@
     },
     {
       "type": "warning",
-      "text": "Account setup, enrollment, remote access and optional software depend on the selected installation profile. A pending Tailscale or CrowdSec enrollment is expected until you approve it."
+      "text": "Account setup, enrollment, remote access and optional software depend on the selected system profile. A pending Tailscale or CrowdSec enrollment is expected until you approve it."
     },
     {
       "type": "heading",

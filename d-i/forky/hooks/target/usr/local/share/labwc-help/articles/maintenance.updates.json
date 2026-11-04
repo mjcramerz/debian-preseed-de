@@ -3,7 +3,7 @@
   "blocks": [
     {
       "type": "paragraph",
-      "text": "The installation uses Debian-managed packages and declared signed external repositories. Computer Management → System & Recovery → Maintenance & Health → Packages & Firmware provides package-health and pending-upgrade views and deliberately authorized update actions."
+      "text": "The system uses Debian packages and declared signed external package sources. Computer Management → System & Recovery → Maintenance & Health → Packages & Firmware provides package-health and pending-upgrade views and deliberately authorized update actions."
     },
     {
       "type": "heading",
@@ -25,7 +25,7 @@
     },
     {
       "type": "paragraph",
-      "text": "Repository definitions and scoped keys live under /etc/apt/. Preserve conffiles and the selected release/pinning policy. If an update is interrupted, inspect package-health/log evidence before an administrator resumes repair."
+      "text": "Package source definitions and scoped keys live under /etc/apt/. Preserve conffiles and the selected release/pinning policy. If an update is interrupted, inspect package-health/log evidence before an administrator resumes repair."
     },
     {
       "type": "warning",

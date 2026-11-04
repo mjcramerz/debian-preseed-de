@@ -1,0 +1,61 @@
+{
+  "version": 1,
+  "blocks": [
+    {
+      "type": "paragraph",
+      "text": "Incus manages system containers and virtual machines through its configured local or remote endpoint. The incus client sends the requested operation to that endpoint; Help only documents commands and never contacts an Incus daemon."
+    },
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "Launch a container"
+    },
+    {
+      "type": "code",
+      "text": "incus remote list\nincus image list images: debian\nincus launch images:debian/13 dev-shell\nincus list"
+    },
+    {
+      "type": "paragraph",
+      "text": "Check the remote and image alias before launching. A launch creates a named instance and may allocate storage and network resources. Use an image publisher and release that you trust."
+    },
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "Work inside an instance"
+    },
+    {
+      "type": "code",
+      "text": "incus exec dev-shell -- bash\nincus file push ./config.toml dev-shell/root/config.toml\nincus file pull dev-shell/root/report.txt ./report.txt"
+    },
+    {
+      "type": "paragraph",
+      "text": "incus exec runs the selected command in the instance. File transfers use explicit source and destination paths; check both sides before copying credentials or replacing a file."
+    },
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "Profiles and storage"
+    },
+    {
+      "type": "code",
+      "text": "incus profile show default\nincus storage list\nincus config device add dev-shell data disk source=example-data path=/srv/data"
+    },
+    {
+      "type": "paragraph",
+      "text": "Profiles provide reusable limits and devices. Adding a disk device changes the instance's storage view; verify the source and destination before applying it."
+    },
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "Stop and remove"
+    },
+    {
+      "type": "code",
+      "text": "incus stop dev-shell\nincus delete --force dev-shell"
+    },
+    {
+      "type": "warning",
+      "text": "Remote selection, instance deletion, storage changes and network devices affect real resources. Confirm the target and preserve data before using destructive commands."
+    }
+  ]
+}

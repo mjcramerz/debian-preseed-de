@@ -3,7 +3,7 @@
   "blocks": [
     {
       "type": "paragraph",
-      "text": "F2FS profiles target flash storage such as eMMC. The installer chooses the filesystem and mount policy. Btrfs subvolume and snapshot commands do not apply to F2FS."
+      "text": "F2FS profiles target flash storage such as eMMC. The system profile chooses the filesystem and mount policy. Btrfs subvolume and snapshot commands do not apply to F2FS."
     },
     {
       "type": "code",

@@ -3,7 +3,7 @@
   "blocks": [
     {
       "type": "paragraph",
-      "text": "Use Computer Management → Network & Remote → VPN Connections or WireGuard Connections to select configured connections. Connection definitions and credentials are installation/profile dependent."
+      "text": "Use Computer Management → Network & Remote → VPN Connections or WireGuard Connections to select configured connections. Connection definitions and credentials are system-profile dependent."
     },
     {
       "type": "heading",
