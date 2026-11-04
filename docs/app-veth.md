@@ -29,22 +29,24 @@ from `d-i/forky/hosts/installer/identity.env`, using the shared validated
   },
   "apps": {
     "bitwarden": {"network": true, "block_lan": true, "slots": [0, 1], "addresses": ["10.203.0.2", "10.203.0.6"]},
+    "chatgpt": {"network": true, "block_lan": false, "slots": [2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13], "addresses": ["10.203.0.10", "10.203.0.14", "10.203.0.18", "10.203.0.22", "10.203.0.26", "10.203.0.30", "10.203.0.34", "10.203.0.38", "10.203.0.42", "10.203.0.46", "10.203.0.50", "10.203.0.54"]},
+    "codex": {"network": true, "block_lan": false, "slots": [18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29], "addresses": ["10.203.0.74", "10.203.0.78", "10.203.0.82", "10.203.0.86", "10.203.0.90", "10.203.0.94", "10.203.0.98", "10.203.0.102", "10.203.0.106", "10.203.0.110", "10.203.0.114", "10.203.0.118"]},
     "qbittorrent": {
       "network": true,
       "block_lan": false,
       "pin_route": true,
       "peer_port": {"ethernet": 50309, "wifi": 50410},
-      "slots": [28],
-      "addresses": ["10.203.0.114"]
+      "slots": [48],
+      "addresses": ["10.203.0.194"]
     },
     "new-client": {
       "network": true,
       "block_lan": true,
       "executables": ["/opt/new-client/client"],
-      "slots": [47, 48],
-      "addresses": ["10.203.0.190", "10.203.0.194"]
+      "slots": [67, 68],
+      "addresses": ["10.203.1.14", "10.203.1.18"]
     },
-    "keepassxc": {"network": false, "slots": [49], "addresses": ["10.203.0.198"]}
+    "keepassxc": {"network": false, "slots": [69], "addresses": ["10.203.1.22"]}
   }
 }
 ```
@@ -56,7 +58,7 @@ clients. KeePassXC, Sleek, MPV and RetroArch have no network entry by default.
 
 | Application key | Meaning |
 | --- | --- |
-| `slots` | Required in version 2. Ordered list of unique reserved integers below `max_leases`; no slot may belong to two apps. The installer gives ordinary built-in applications two slots; applications with `peer_port` or `pin_route` must reserve one slot. Custom unpinned applications may reserve available slots within the configured capacity. The broker uses the first free slot in this app's list, and reports exhaustion instead of borrowing another app's address. |
+| `slots` | Required in version 2. Ordered list of unique reserved integers below `max_leases`; no slot may belong to two apps. The installer gives ordinary built-in applications two slots, and gives both ChatGPT and Codex twelve slots for concurrent sandboxes. Applications with `peer_port` or `pin_route` must reserve one slot. Custom unpinned applications may reserve available slots within the configured capacity. The broker uses the first free slot in this app's list, and reports exhaustion instead of borrowing another app's address. |
 | `addresses` | Required canonical IPv4 addresses in slot order. The installer derives them from the subnet and reservations; the parser rejects missing or inconsistent addresses. |
 | `network` | Required Boolean. Only `true` authorizes a lease. An omitted managed app, or an entry with `false`, launches in its private namespace without a veth. |
 | `block_lan` | Optional Boolean, default `false`. Blocks private IPv4, carrier-grade NAT, link-local, loopback, benchmark, multicast and reserved ranges, plus directly connected LAN subnets. DNS continues through the dedicated dnsmasq/Stubby path. |
@@ -72,18 +74,20 @@ retain their existing restrictions; disposable qBittorrent uses the separate
 
 The IPv4 pool must be an aligned RFC1918 subnet with enough /30s for every
 slot. Slot `n` owns the /30 starting at `network_address + 4*n`: the host is
-`+1`, and the app is `+2`. The default qBittorrent identity is slot 28,
-`veth28-app` on the host, gateway `10.203.0.113`, and `10.203.0.114` on its
-private `eth0`. Ordinary built-in desktop apps have two fixed slots for concurrent
-namespaces. Applications with a pinned route or peer forwarding keep one slot
-because their source route or forwarded host port is singleton state. Different
-apps never compete for an address. After release the primary slot becomes
-available again. Persistent qBittorrent uses its existing singleton IPC path
-and one reserved slot.
+`+1`, and the app is `+2`. The default qBittorrent identity is slot 48,
+`veth48-app` on the host, gateway `10.203.0.193`, and `10.203.0.194` on its
+private `eth0`. Ordinary built-in desktop apps have two fixed slots, while
+ChatGPT and Codex each have twelve for concurrent namespaces. Applications with
+a pinned route or peer forwarding keep one slot because their source route or
+forwarded host port is singleton state. Different apps never compete for an
+address. After release the primary slot becomes available again. Persistent
+qBittorrent uses its existing singleton IPC path and one reserved slot.
 
 `APP_VETH_*` defines the subnet, capacity, interface prefix/suffixes, private
-interface and DNS endpoints. The installer assigns stable two-slot or
-single-slot reservations in canonical application order. A nonempty
+interface and DNS endpoints. The installer assigns stable two-slot reservations
+for ordinary applications, twelve-slot reservations for ChatGPT and Codex, and
+single-slot reservations for singleton peer-forwarding or route-pinned
+applications in canonical application order. A nonempty
 `APP_VETH_OVERRIDE` in a host profile selects only the named applications;
 empty override values use the identity defaults. The installer renders the
 same identity into NetworkManager exclusions, AppArmor sysctl grants, broker
@@ -178,7 +182,7 @@ policy. Offline and disposable privacy actions retain their existing behavior.
 Add its identifier, unused reserved slots, and actual executable paths to the
 installed root-owned `/etc/app-veth.json` `apps` object. There is no runtime
 allowlist restricted to the installer defaults. The complete default policy
-uses slots 0–46, leaving slots 47–127 (81 slots) for future applications without
+uses slots 0–66, leaving slots 67–127 (61 slots) for future applications without
 shrinking the `/23` pool or restarting the broker. The four F2FS host profiles
 select seven applications including Tor Browser, use 14 slots, and retain their 64-slot capacity;
 their unused slots start at 14. Always use the actual installed policy's free

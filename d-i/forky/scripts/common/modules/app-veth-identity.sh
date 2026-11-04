@@ -178,7 +178,13 @@ app_veth_identity_placeholder_map() (
       for (i = 1; i <= app_count; i++) {
         app = apps[i]
         if (!(app in selected)) continue
-        count = (app == "qbittorrent" ? 1 : 2)
+        # Reserve capacity for concurrent sandbox processes without allowing
+        # an application to borrow another app address. Codex and
+        # ChatGPT each reserve twelve concurrent sandbox slots; qBittorrent
+        # remains a singleton because its peer-port and route state are shared.
+        if (app == "qbittorrent") count = 1
+        else if (app == "chatgpt" || app == "codex") count = 12
+        else count = 2
         if (slot + count > leases) fail("APP_VETH_MAX_LEASES")
         slots_json = "["; addresses_json = "["
         for (j = 0; j < count; j++) {

@@ -112,44 +112,55 @@ class PolicyParsingTests(unittest.TestCase):
 
     def test_explicit_slots_are_stable_across_launch_order_and_reuse(self):
         rows = DEFAULT_POLICIES
-        self.assertEqual(broker.application_slot(rows['qbittorrent'], {}), 28)
-        self.assertEqual(rows['qbittorrent']['addresses'], ('10.203.0.114',))
+        self.assertEqual(broker.application_slot(rows['qbittorrent'], {}), 48)
+        self.assertEqual(rows['qbittorrent']['addresses'], ('10.203.0.194',))
         active = {'browser': types.SimpleNamespace(slot=4), 'code': types.SimpleNamespace(slot=6)}
-        self.assertEqual(broker.application_slot(rows['qbittorrent'], active), 28)
-        active['torrent'] = types.SimpleNamespace(slot=28)
+        self.assertEqual(broker.application_slot(rows['qbittorrent'], active), 48)
+        active['torrent'] = types.SimpleNamespace(slot=48)
         with self.assertRaisesRegex(ValueError, 'reserved network slots'):
             broker.application_slot(rows['qbittorrent'], active)
         del active['torrent']
-        self.assertEqual(broker.application_slot(rows['qbittorrent'], active), 28)
-        self.assertEqual(broker.application_slot(rows['chromium'], active), 5)
-        active['second-browser'] = types.SimpleNamespace(slot=5)
+        self.assertEqual(broker.application_slot(rows['qbittorrent'], active), 48)
+        self.assertEqual(broker.application_slot(rows['chromium'], active), 14)
+        active['second-browser'] = types.SimpleNamespace(slot=14)
         with self.assertRaisesRegex(ValueError, 'reserved network slots'):
             broker.application_slot(rows['chromium'], active)
         del active['browser']
-        self.assertEqual(broker.application_slot(rows['chromium'], active), 4)
+        self.assertEqual(broker.application_slot(rows['chromium'], active), 14)
 
-    def test_builtin_apps_have_two_slots_with_singleton_qbittorrent_and_future_capacity(self):
+    def test_builtin_apps_have_explicit_concurrency_slots_with_singleton_qbittorrent_and_future_capacity(self):
         self.assertEqual(len(DEFAULT_POLICIES), 24)
         used = set()
         for app, policy in DEFAULT_POLICIES.items():
             with self.subTest(app=app):
-                self.assertEqual(len(policy['slots']), 1 if app == 'qbittorrent' else 2)
+                expected = {'chatgpt': 12, 'codex': 12}.get(app, 1 if app == 'qbittorrent' else 2)
+                self.assertEqual(len(policy['slots']), expected)
                 self.assertFalse(used.intersection(policy['slots']))
                 used.update(policy['slots'])
-        self.assertEqual(used, set(range(47)))
+        self.assertEqual(used, set(range(67)))
         self.assertEqual(DEFAULT_CONFIGURATION['network']['max_leases'], 128)
-        self.assertEqual(len(set(range(128)) - used), 81)
+        self.assertEqual(len(set(range(128)) - used), 61)
+        for app in ('chatgpt', 'codex'):
+            leases = {}
+            policy = DEFAULT_POLICIES[app]
+            for index, expected in enumerate(policy['slots']):
+                with self.subTest(app=app, index=index):
+                    self.assertEqual(broker.application_slot(policy, leases), expected)
+                leases[f'{app}-{index}'] = types.SimpleNamespace(slot=expected)
+            with self.subTest(app=app, exhausted=True), self.assertRaisesRegex(
+                    ValueError, 'reserved network slots'):
+                broker.application_slot(policy, leases)
 
     def test_future_apps_accept_unused_slots_without_a_builtin_allowlist(self):
         source = json.loads(DEFAULT_CONFIG_RAW)
         source['apps']['future-client'] = {
             'network': True, 'executables': ['/opt/future-client/client'],
-            'slots': [47, 48], 'addresses': ['10.203.0.190', '10.203.0.194']}
+            'slots': [67, 68], 'addresses': ['10.203.1.14', '10.203.1.18']}
         policy = policy_parser.parse_configuration(json.dumps(source).encode())['apps']['future-client']
-        self.assertEqual(broker.application_slot(policy, {}), 47)
-        occupied = {'first': types.SimpleNamespace(slot=47)}
-        self.assertEqual(broker.application_slot(policy, occupied), 48)
-        occupied['second'] = types.SimpleNamespace(slot=48)
+        self.assertEqual(broker.application_slot(policy, {}), 67)
+        occupied = {'first': types.SimpleNamespace(slot=67)}
+        self.assertEqual(broker.application_slot(policy, occupied), 68)
+        occupied['second'] = types.SimpleNamespace(slot=68)
         with self.assertRaisesRegex(ValueError, 'reserved network slots'):
             broker.application_slot(policy, occupied)
 
@@ -333,7 +344,7 @@ apply_placeholder_map_to_target "$2/apparmor.conf" app_veth_identity_placeholder
                     data = (Path(directory) / "config.json").read_bytes()
                     row = policy_parser.parse_configuration(data)["apps"]["qbittorrent"]
                     self.assertEqual(row["peer_port"], dict(zip(("ethernet", "wifi"), map(int, port.split(',')))))
-                    self.assertEqual(row["slots"], (28,))
+                    self.assertEqual(row["slots"], (48,))
 
     def test_app_veth_override_renders_only_selected_two_slot_apps(self):
         with tempfile.TemporaryDirectory() as directory:
@@ -847,7 +858,7 @@ class CommandResultTests(unittest.TestCase):
         run.assert_called_once()
 
     def test_empty_conntrack_delete_is_distinguished_from_administrative_errors(self):
-        command = ['/usr/sbin/conntrack', '-D', '-f', 'ipv4', '--orig-src', '10.203.0.114']
+        command = ['/usr/sbin/conntrack', '-D', '-f', 'ipv4', '--orig-src', '10.203.0.194']
         cases = ((1, b'conntrack v1.4.9 (conntrack-tools): 0 flow entries have been deleted.\n', True),
                  (1, b'conntrack v1.4.9 (conntrack-tools): Operation failed: Permission denied\n', False),
                  (1, b'', False), (2, b'0 flow entries have been deleted.\n', False))
@@ -1645,8 +1656,8 @@ class BrokerLifecycleTests(unittest.TestCase):
     def test_main_route_notification_updates_lease_and_only_shutdown_closes_it(self):
         with tempfile.TemporaryDirectory() as directory, contextlib.ExitStack() as stack:
             nsfd = os.open('/dev/null', os.O_RDONLY | os.O_CLOEXEC)
-            network = mock.Mock(nsfd=nsfd, slot=28, address='10.203.0.114',
-                gateway='10.203.0.113', interface='eth0', pinned=True, route_retry_at=None)
+            network = mock.Mock(nsfd=nsfd, slot=48, address='10.203.0.194',
+                gateway='10.203.0.193', interface='eth0', pinned=True, route_retry_at=None)
             channel, listener, watcher, selector = [mock.Mock() for _ in range(4)]
             listener.accept.return_value = (channel, None)
             watcher.recv.side_effect = BlockingIOError

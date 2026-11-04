@@ -105,7 +105,7 @@ class TorrentIntegrationTests(unittest.TestCase):
                                      'nameserver 10.0.2.3\n' if online else '# Networking is disabled.\n')
                     if online:
                         options['on_network_ready'](types.SimpleNamespace(
-                            peer_port=policy['peer_port'], interface='eth0', address='10.203.0.114'))
+                            peer_port=policy['peer_port'], interface='eth0', address='10.203.0.194'))
                     else:
                         self.assertIsNone(options['on_network_ready'])
                     config = configparser.ConfigParser(interpolation=None)
@@ -114,7 +114,7 @@ class TorrentIntegrationTests(unittest.TestCase):
                     self.assertEqual(config['BitTorrent'][r'Session\Port'], str(expected_port))
                     self.assertEqual(config['BitTorrent'][r'Session\AnnouncePort'], '0')
                     self.assertEqual(config['BitTorrent'][r'Session\Interface'], 'eth0')
-                    self.assertEqual(config['BitTorrent'][r'Session\InterfaceAddress'], '10.203.0.114')
+                    self.assertEqual(config['BitTorrent'][r'Session\InterfaceAddress'], '10.203.0.194')
                     return 0
                 runtime.run_veth_sandbox = launch
                 globals_ = QBIT['run_new_instance'].__globals__
@@ -149,7 +149,7 @@ class TorrentIntegrationTests(unittest.TestCase):
                     self.assertEqual((Path(temporary) / 'resolv.conf').read_text(encoding='ascii'),
                                      runtime.veth_resolv_conf())
                     options['on_network_ready'](types.SimpleNamespace(
-                        peer_port=broker_port, interface='eth0', address='10.203.0.114'))
+                        peer_port=broker_port, interface='eth0', address='10.203.0.194'))
                     return 0
                 runtime.run_veth_sandbox = ready
                 with self.subTest(broker_port=broker_port), \
@@ -337,7 +337,7 @@ class TorrentIntegrationTests(unittest.TestCase):
                 self.assertEqual(parser['Network']['Proxy\\Profiles\\' + profile], 'true')
             self.assertEqual(parser['BitTorrent'][r'Session\ProxyPeerConnections'], 'false')
             self.assertEqual(parser['BitTorrent'][r'Session\Interface'], 'eth0')
-            self.assertEqual(parser['BitTorrent'][r'Session\InterfaceAddress'], '10.203.0.114')
+            self.assertEqual(parser['BitTorrent'][r'Session\InterfaceAddress'], '10.203.0.194')
             for key in (r'Session\AnnounceToAllTiers', r'Session\AnnounceToAllTrackers'):
                 self.assertEqual(parser['BitTorrent'][key], 'false')
             self.assertEqual(parser['BitTorrent'][r'Session\AnnouncePort'], '0')
@@ -574,7 +574,7 @@ target_normalize_systemd_config_parent_modes() { :; }
 desktop_log() { :; }
 desktop_stage_role_asset() { stage_target_asset "$(installer_repo_join_var DIR_HOOKS_TARGET "$1")" "$2" "$3"; }
 desktop_qbittorrent_enabled=true
-desktop_qbittorrent_address=10.203.0.114
+desktop_qbittorrent_address=10.203.0.194
 APP_VETH_NAMESPACE_INTERFACE=eth0
 ACCOUNT_USERNAME=fixture
 ''' + block
@@ -583,7 +583,7 @@ ACCOUNT_USERNAME=fixture
                                     capture_output=True, text=True, encoding='utf-8', timeout=10)
             self.assertEqual(result.returncode, 0, result.stderr)
             for name, address, root in (
-                ('10-security.conf', '10.203.0.114', '/run/media/fixture/bittorrent'),
+                ('10-security.conf', '10.203.0.194', '/run/media/fixture/bittorrent'),
                 ('20-managed-privacy.conf', '', '/home/user/Downloads'),
             ):
                 path = Path(directory) / 'etc/qbittorrent/qBittorrent.conf.d' / name
