@@ -110,8 +110,9 @@ if command -v source_fetch_external >/dev/null 2>&1; then exit 95; fi
     def download(self, filename: str, **options):
         # Only these fixed fixture filenames may enter the command text.
         self.assertIn(filename, ('wallpapers.tar.gz', 'desktop-themes.tar.gz'))
-        return self.invoke('''desktop_download_release_archive fixture themes-v0.0.1 \
-  "https://github.com/mjcramerz/themes/releases/download/themes-v0.0.1/''' + filename + '''" \
+        tag = 'wallpapers-v0.0.1' if filename == 'wallpapers.tar.gz' else 'themes-v0.0.1'
+        return self.invoke('''desktop_download_release_archive fixture ''' + tag + ''' \
+  "https://github.com/mjcramerz/themes/releases/download/''' + tag + '/' + filename + '''" \
   "$FIXTURE_SHA256" ''' + filename + ''' "$FIXTURE_DESTINATION" "$FIXTURE_MAXIMUM"
 ''', **options)
 
@@ -123,7 +124,9 @@ if command -v source_fetch_external >/dev/null 2>&1; then exit 95; fi
                 self.assertEqual((self.root / 'download.tar.gz').read_bytes(), self.archive.read_bytes())
                 self.assertEqual((self.root / 'download.tar.gz').stat().st_mode & 0o777, 0o600)
         self.assertEqual((self.root / 'transfer.log').read_text().splitlines(), [
-            'https://github.com/mjcramerz/themes/releases/download/themes-v0.0.1|' + name + '|0600'
+            'https://github.com/mjcramerz/themes/releases/download/' +
+            ('wallpapers-v0.0.1' if name == 'wallpapers.tar.gz' else 'themes-v0.0.1') +
+            '|' + name + '|0600'
             for name in ('wallpapers.tar.gz', 'desktop-themes.tar.gz')])
 
     def test_transport_failure_preserves_previous_download_and_stops(self):
@@ -213,8 +216,9 @@ cp -- "$FIXTURE_ARCHIVE" "$output"
                     self.assertEqual(result.returncode, 0, result.stderr)
                     self.assertEqual((self.root / 'download.tar.gz').read_bytes(),
                                      self.archive.read_bytes())
+                    tag = 'wallpapers-v0.0.1' if filename == 'wallpapers.tar.gz' else 'themes-v0.0.1'
                     expected.extend([
-                        'https://github.com/mjcramerz/themes/releases/download/themes-v0.0.1/' + filename,
+                        'https://github.com/mjcramerz/themes/releases/download/' + tag + '/' + filename,
                         redirect,
                     ])
         self.assertEqual((self.root / 'requests.log').read_text().splitlines(), expected)
@@ -233,7 +237,7 @@ cp -- "$FIXTURE_ARCHIVE" "$output"
                 result = self.download('wallpapers.tar.gz')
                 self.assertNotEqual(result.returncode, 0)
                 self.assertEqual((self.root / 'requests.log').read_text().splitlines(), [
-                    'https://github.com/mjcramerz/themes/releases/download/themes-v0.0.1/wallpapers.tar.gz'])
+                    'https://github.com/mjcramerz/themes/releases/download/wallpapers-v0.0.1/wallpapers.tar.gz'])
                 self.assertEqual(destination.read_bytes(), b'previous owned download')
                 self.assertFalse((self.root / 'events.log').exists())
                 self.assertEqual(list(self.root.glob('download.tar.gz.external.*')), [])
@@ -244,7 +248,7 @@ cp -- "$FIXTURE_ARCHIVE" "$output"
         result = self.download('wallpapers.tar.gz')
         self.assertNotEqual(result.returncode, 0)
         self.assertEqual((self.root / 'requests.log').read_text().splitlines(), [
-            'https://github.com/mjcramerz/themes/releases/download/themes-v0.0.1/wallpapers.tar.gz',
+            'https://github.com/mjcramerz/themes/releases/download/wallpapers-v0.0.1/wallpapers.tar.gz',
             first,
         ])
         self.assertFalse((self.root / 'download.tar.gz').exists())
@@ -253,7 +257,7 @@ cp -- "$FIXTURE_ARCHIVE" "$output"
         self.use_http_transport('https://release-assets.githubusercontent.com/asset')
         result = self.invoke('''installer_load_source_library "$INSTALLER_SOURCE_ROOT"
 source_http_get \
-  https://github.com/mjcramerz/themes/releases/download/themes-v0.0.1/wallpapers.tar.gz \
+  https://github.com/mjcramerz/themes/releases/download/wallpapers-v0.0.1/wallpapers.tar.gz \
   "$FIXTURE_DESTINATION"
 ''')
         self.assertNotEqual(result.returncode, 0)
@@ -297,8 +301,8 @@ source_fetch_external https://github.com/mjcramerz/themes/raw/main \
 }
 FIXTURE_DESTINATION="$TMP_ENV_DIR/desktop-wallpapers.$$.tar.gz"
 export FIXTURE_DESTINATION
-LABWC_WALLPAPERS_TAG=themes-v0.0.1
-LABWC_WALLPAPERS_URL=https://github.com/mjcramerz/themes/releases/download/themes-v0.0.1/wallpapers.tar.gz
+LABWC_WALLPAPERS_TAG=wallpapers-v0.0.1
+LABWC_WALLPAPERS_URL=https://github.com/mjcramerz/themes/releases/download/wallpapers-v0.0.1/wallpapers.tar.gz
 LABWC_WALLPAPERS_SHA256=$FIXTURE_SHA256
 LABWC_WALLPAPERS_MAXIMUM_BYTES=$FIXTURE_MAXIMUM
 desktop_extract_role_wallpaper_archive

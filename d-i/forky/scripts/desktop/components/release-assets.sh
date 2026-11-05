@@ -8,8 +8,9 @@ desktop_validate_release_pin() {
   release_sha256=$4
   release_filename=$5
 
-  case "$release_tag" in
-    themes-v[0-9]*.[0-9]*.[0-9]*) ;;
+  case "$release_filename:$release_tag" in
+    desktop-themes.tar.gz:themes-v[0-9]*.[0-9]*.[0-9]*) ;;
+    wallpapers.tar.gz:wallpapers-v[0-9]*.[0-9]*.[0-9]*) ;;
     *) installer_fatal "${release_label} release tag is invalid: ${release_tag:-unset}" ;;
   esac
   [ "$release_url" = "https://github.com/mjcramerz/themes/releases/download/${release_tag}/${release_filename}" ] ||
