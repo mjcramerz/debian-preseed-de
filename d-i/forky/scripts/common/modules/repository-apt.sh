@@ -317,6 +317,15 @@ installer_repo_join_var() {
   # etc/systemd/system/user@.service.d/50-oom-score.conf.
   case "$installer_repo_join_leaf" in
     '') printf '%s\n' "$installer_repo_join_base" ;;
+    # Chromium-derived Vivaldi profiles require this exact space-containing
+    # filename. Keep the exception limited to the managed seed asset, and
+    # normalize a leading slash if an older caller supplies one.
+    "etc/skel-desktop/.config/vivaldi/Local State")
+      printf '%s/%s\n' "$installer_repo_join_base" "$installer_repo_join_leaf"
+      ;;
+    "/etc/skel-desktop/.config/vivaldi/Local State")
+      printf '%s/etc/skel-desktop/.config/vivaldi/Local State\n' "$installer_repo_join_base"
+      ;;
     /*|../*|*/..|*../*|*//*|*[!ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789._/@-]*)
       installer_fatal "unsafe repository path suffix for ${installer_repo_join_dir}: ${installer_repo_join_leaf:-unset}"
       ;;

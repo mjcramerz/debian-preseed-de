@@ -139,6 +139,15 @@ bootstrap_repo_join_var() {
   # etc/systemd/system/user@.service.d/50-oom-score.conf.
   case "$bootstrap_repo_join_leaf" in
     '') printf '%s\n' "$bootstrap_repo_join_base" ;;
+    # Chromium-derived Vivaldi profiles require this exact space-containing
+    # filename. Keep the exception limited to the managed seed asset, and
+    # normalize a leading slash if an older caller supplies one.
+    "etc/skel-desktop/.config/vivaldi/Local State")
+      printf '%s/%s\n' "$bootstrap_repo_join_base" "$bootstrap_repo_join_leaf"
+      ;;
+    "/etc/skel-desktop/.config/vivaldi/Local State")
+      printf '%s/etc/skel-desktop/.config/vivaldi/Local State\n' "$bootstrap_repo_join_base"
+      ;;
     /*|../*|*/..|*../*|*//*|*[!ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789._/@-]*)
       bootstrap_fatal "unsafe repository path suffix for ${bootstrap_repo_join_dir}: ${bootstrap_repo_join_leaf:-unset}"
       ;;

@@ -1182,9 +1182,9 @@ class ThemeResourceTests(unittest.TestCase):
             'LABWC_DESKTOP_THEMES_TAG': 'themes-v0.0.1',
             'LABWC_DESKTOP_THEMES_URL': 'https://github.com/mjcramerz/themes/releases/download/themes-v0.0.1/desktop-themes.tar.gz',
             'LABWC_DESKTOP_THEMES_SHA256': '3954a7573afeb6f47a2bb2ee22c690a84bd9d7ea538aa2ad8909702516105b03',
-            'LABWC_WALLPAPERS_TAG': 'wallpapers-v0.0.1',
-            'LABWC_WALLPAPERS_URL': 'https://github.com/mjcramerz/themes/releases/download/wallpapers-v0.0.1/wallpapers.tar.gz',
-            'LABWC_WALLPAPERS_SHA256': 'b26ab340ab803710f73452bf3e536e086c46ad2b6484a5ac476c6d5a7721cd14',
+            'LABWC_WALLPAPERS_TAG': 'wallpapers-v0.0.2',
+            'LABWC_WALLPAPERS_URL': 'https://github.com/mjcramerz/themes/releases/download/wallpapers-v0.0.2/wallpapers.tar.gz',
+            'LABWC_WALLPAPERS_SHA256': '4259468664eaeb7f42cedfb24b9cae44f6e6a0bd1cca172dd511f67bda6aed12',
         }
         profiles = sorted((SEED / 'hosts/profiles').glob('*.env'))
         self.assertEqual(len(profiles), 10)
