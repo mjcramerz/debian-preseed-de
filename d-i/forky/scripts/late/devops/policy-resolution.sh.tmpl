@@ -228,6 +228,7 @@ devops_load_publishing_credentials() {
 }
 
 devops_validate_codex_policy() {
+  devops_codex_host_log_dir=__INSTALLER_LOG_CODEX_RUNTIME_DIR__
   : "${DEVOPS_CODEX_BWRAP_USERNS_CLONE:?missing DevOps user namespace policy}"
   : "${DEVOPS_CODEX_BWRAP_MAX_USER_NAMESPACES:?missing DevOps namespace capacity policy}"
 
@@ -266,8 +267,8 @@ devops_validate_codex_policy() {
   devops_validate_positive_integer \
     "DEVOPS_CODEX_STANDALONE_INSTALLER_MAXIMUM_BYTES" \
     "$DEVOPS_CODEX_STANDALONE_INSTALLER_MAXIMUM_BYTES"
-  [ "$DEVOPS_CODEX_STANDALONE_INSTALLER_MAXIMUM_BYTES" -le 1048576 ] ||
-    devops_fatal "DEVOPS_CODEX_STANDALONE_INSTALLER_MAXIMUM_BYTES must not exceed 1048576"
+  [ "$DEVOPS_CODEX_STANDALONE_INSTALLER_MAXIMUM_BYTES" -le 210763776 ] ||
+    devops_fatal "DEVOPS_CODEX_STANDALONE_INSTALLER_MAXIMUM_BYTES must not exceed 210763776"
   if ! printf '%s\n' "$DEVOPS_CODEX_RELEASE_TAG" |
     LC_ALL=C grep -Eq '^[A-Za-z0-9][A-Za-z0-9._+-]*$'
   then

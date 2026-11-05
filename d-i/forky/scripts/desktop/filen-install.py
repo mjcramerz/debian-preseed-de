@@ -76,7 +76,7 @@ def read(path: Path, maximum: int = 262144, *, private: bool = False) -> bytes:
 def publish(path: Path, data: bytes, mode: int = 0o644) -> None:
     directory(path.parent)
     if path.exists() or path.is_symlink():
-        read(path, maximum=201326592)  # Refuse links or untrusted existing code.
+        read(path, maximum=411041792)  # Refuse links or untrusted existing code.
     fd, name = tempfile.mkstemp(prefix='.filen-', dir=path.parent)
     try:
         with os.fdopen(fd, 'wb') as stream:
@@ -209,7 +209,7 @@ def install(stage: Path, env: dict[str, str]) -> None:
     if env['FILEN_CLI_URL'] != url or not re.fullmatch(r'[0-9a-f]{64}', sha):
         raise Error('invalid pinned release URL or digest')
     maximum = int(env['FILEN_CLI_MAXIMUM_BYTES'])
-    if not 1048576 <= maximum <= 201326592:
+    if not 1048576 <= maximum <= 411041792:
         raise Error('invalid release download size bound')
     root = path_value(env['NETWORK_SHARING_ROOT_PATH'])
     home = path_value(env['ACCOUNT_HOME'])

@@ -43,7 +43,7 @@ PINS = {
     'ARCHITECTURE': 'amd64',
     'URL': 'https://github.com/mjcramerz/resctl-bench/releases/download/resctl-bench-v0.0.2-P15s/resctl-bench-2.2.6-x86_64-unknown-linux-gnu-native-aa3786abb93aa646.tar.gz',
     'SHA256': 'bb132e73ffe5cdf32e205569b8a5cd7e2f52872dae6ffeace57b28337f2d6857',
-    'MAXIMUM_BYTES': '536870912',
+    'MAXIMUM_BYTES': '746586112',
     'MAXIMUM_EXTRACTED_BYTES': '2147483648',
     'MAXIMUM_MEMBERS': '8192',
 }

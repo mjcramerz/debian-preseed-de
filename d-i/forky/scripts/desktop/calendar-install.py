@@ -177,7 +177,7 @@ def install_agenda() -> None:
     digest = '22c2c9bb03f77225710cacb947ad36bbb08b302f7d6ed3b923d51b67abcdc719'
     url = 'https://github.com/mjcramerz/agenda/releases/download/agenda-v1.2.1/agenda-1.2.1-debian-amd64.tar.gz'
     pins = {'VERSION': version, 'COMMIT': commit, 'SHA256': digest, 'URL': url,
-            'MAXIMUM_BYTES': '1048576'}
+            'MAXIMUM_BYTES': '210763776'}
     if any(os.environ.get('AGENDA_' + key) != value for key, value in pins.items()):
         raise Error('Agenda profile release pins differ')
     app = 'com.github.dahenson.agenda'
@@ -186,7 +186,7 @@ def install_agenda() -> None:
     license_path = 'rootfs/usr/share/doc/agenda/copyright'
     icon = 'rootfs/usr/share/icons/hicolor/128x128/apps/' + app + '.svg'
     print('calendar-install: downloading pinned Agenda 1.2.1', file=sys.stderr)
-    assets = members(download(url, digest, 1048576), 'agenda-1.2.1-debian-amd64',
+    assets = members(download(url, digest, 210763776), 'agenda-1.2.1-debian-amd64',
                      {binary, schema, license_path, icon, 'BUILD-INFO.json', 'prefix.txt'}, agenda=True)
     elf(assets[binary])
     metadata = json.loads(assets['BUILD-INFO.json'])

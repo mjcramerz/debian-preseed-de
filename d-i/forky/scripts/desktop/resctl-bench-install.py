@@ -62,7 +62,7 @@ def policy(args: argparse.Namespace) -> None:
         raise Error('invalid RESCTL_BENCH_URL for the configured tag/version/architecture: '
                     f'expected {prefix}.tar.gz or {prefix}-<16 lowercase hex>.tar.gz; '
                     f'got {args.url!r}')
-    if not (1024 <= args.max_archive <= 536870912
+    if not (1024 <= args.max_archive <= 746586112
             and args.max_archive <= args.max_extracted <= 2147483648
             and 3 <= args.max_members <= 16384):
         raise Error('release size/member bounds are invalid')

@@ -47,7 +47,7 @@ desktop_waypaper_validate_policy() {
   desktop_waypaper_validate_unsigned_integer LABWC_WAYPAPER_MAXIMUM_BYTES "$LABWC_WAYPAPER_MAXIMUM_BYTES"
   [ "$LABWC_WAYPAPER_MINIMUM_BYTES" -ge 16384 ] &&
     [ "$LABWC_WAYPAPER_MAXIMUM_BYTES" -ge "$LABWC_WAYPAPER_MINIMUM_BYTES" ] &&
-    [ "$LABWC_WAYPAPER_MAXIMUM_BYTES" -le 1048576 ] ||
+    [ "$LABWC_WAYPAPER_MAXIMUM_BYTES" -le 210763776 ] ||
     desktop_waypaper_fail "Waypaper wheel size bounds are invalid"
   desktop_waypaper_validate_unsigned_integer \
     LABWC_WAYPAPER_INSTALL_TIMEOUT_SECONDS \
