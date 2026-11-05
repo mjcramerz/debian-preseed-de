@@ -117,12 +117,12 @@ def unpack(args: argparse.Namespace, archive: Path, stage: Path) -> tuple[Path, 
         root_item = members.get(root_path)
         if root_item is None or not root_item.isdir():
             raise Error('release package directory is missing')
+        # Release archives may include bundled helpers and documentation.  The
+        # desktop role needs only these two files; every other member is
+        # ignored and never published, regardless of its archive mode.
         for path, item in members.items():
             if any(parent in members and not members[parent].isdir() for parent in path.parents):
                 raise Error('archive file/directory collision')
-            if (item.isfile() and item.mode & 0o111
-                    and path not in {root_path / CLIENT, root_path / SERVER}):
-                raise Error('release contains an unexpected executable member')
 
         files: dict[str, Path] = {}
         root = stage / expected_root
