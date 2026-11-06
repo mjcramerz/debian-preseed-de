@@ -740,7 +740,7 @@ def load_policy(path: pathlib.Path) -> InstallPolicy:
         values,
         key="osc",
         name="osc",
-        prefix="DEVOPS_OSC",
+        prefix="DEVOPS_OSC_RELEASE",
         version_key="DEVOPS_OSC_RELEASE_VERSION",
         digest_key="DEVOPS_OSC_RELEASE_SHA256",
         digest_algorithm="sha256",
