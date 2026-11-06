@@ -1,0 +1,16 @@
+[Unit]
+Description=GitHub runner rootless Podman API socket
+RequiresMountsFor=/pool/db/runners/github /run/ci-runners/github
+Before=ci-github-podman.service
+
+[Socket]
+ListenStream=/run/ci-runners/github/podman.sock
+SocketUser=github-runner
+SocketGroup=github-runner
+SocketMode=0660
+DirectoryMode=0710
+RemoveOnStop=yes
+Service=ci-github-podman.service
+
+[Install]
+WantedBy=sockets.target

@@ -1,0 +1,19 @@
+@@RECIPE@@ :: \
+  @@SIZE_PART_EFI_MB@@ @@SIZE_PART_EFI_MB@@ @@SIZE_PART_EFI_MB@@ free \
+    $primary{ } $iflabel{ gpt } $reusemethod{ } method{ efi } format{ } \
+  . \
+  @@SIZE_PART_BOOT_MB@@ @@SIZE_PART_BOOT_MB@@ @@SIZE_PART_BOOT_MB@@ ext4 \
+    $primary{ } $bootable{ } method{ format } format{ } use_filesystem{ } filesystem{ ext4 } mountpoint{ /boot } \
+  . \
+  @@SIZE_PART_ROOT_MB@@ @@SIZE_PART_ROOT_MB@@ @@SIZE_PART_ROOT_MB@@ f2fs \
+    method{ format } format{ } use_filesystem{ } filesystem{ f2fs } mountpoint{ / } \
+  . \
+  @@SIZE_PART_HOME_MB@@ @@SIZE_PART_HOME_MB@@ @@SIZE_PART_HOME_MB@@ f2fs \
+    method{ format } format{ } use_filesystem{ } filesystem{ f2fs } mountpoint{ /home } \
+  . \
+  @@SIZE_PART_VAR_LIB_SHSIGNED_MB@@ @@SIZE_PART_VAR_LIB_SHSIGNED_MB@@ @@SIZE_PART_VAR_LIB_SHSIGNED_MB@@ free method{ keep } . \
+  @@SIZE_PART_VAR_LOG_JOURNAL_MB@@ @@SIZE_PART_VAR_LOG_JOURNAL_MB@@ @@SIZE_PART_VAR_LOG_JOURNAL_MB@@ ext4 \
+    method{ format } format{ } use_filesystem{ } filesystem{ ext4 } mountpoint{ /var/log/journal } \
+  . \
+  @@SIZE_PART_RAW_SWAP_MB@@ @@SIZE_PART_RAW_SWAP_MB@@ @@SIZE_PART_RAW_SWAP_MB@@ free method{ keep } . \
+  @@SIZE_PART_RAW_ZRAM_MB@@ @@SIZE_PART_RAW_ZRAM_MB@@ @@SIZE_PART_RAW_ZRAM_MB@@ free method{ keep } .

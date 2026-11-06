@@ -1,0 +1,11 @@
+Package: *
+Pin: release n=trixie
+Pin-Priority: 900
+
+Package: *
+Pin: release n=forky
+Pin-Priority: 100
+
+Package: *
+Pin: release n=experimental
+Pin-Priority: 1

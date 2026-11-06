@@ -1,0 +1,28 @@
+[Unit]
+Description=Apply the managed Trixie server network policy
+After=network-pre.target
+Before=network.target
+Wants=network-pre.target
+ConditionPathExists=/etc/system-config/network.env
+
+[Service]
+Type=oneshot
+ExecStart=/usr/local/libexec/network-policy apply
+RemainAfterExit=yes
+TimeoutStartSec=90s
+TimeoutStopSec=20s
+KillMode=control-group
+NoNewPrivileges=yes
+ProtectSystem=strict
+ProtectHome=yes
+ProtectKernelModules=yes
+ProtectKernelTunables=yes
+ProtectControlGroups=yes
+PrivateTmp=yes
+ReadWritePaths=/run /etc/network /etc/NetworkManager
+RestrictAddressFamilies=AF_UNIX AF_NETLINK AF_INET AF_INET6
+SystemCallArchitectures=native
+UMask=0077
+
+[Install]
+WantedBy=multi-user.target

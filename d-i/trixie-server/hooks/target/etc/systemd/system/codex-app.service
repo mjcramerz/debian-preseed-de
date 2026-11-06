@@ -1,0 +1,34 @@
+[Unit]
+Description=Managed Codex server app-server
+After=network-online.target dbus.service
+Wants=network-online.target
+ConditionPathExists=/etc/codex/server.env
+
+[Service]
+Type=exec
+User=codex
+Group=codex
+EnvironmentFile=/etc/codex/server.env
+ExecStart=/usr/local/libexec/codex-app serve
+Restart=on-failure
+RestartSec=5s
+TimeoutStartSec=60s
+TimeoutStopSec=30s
+KillMode=control-group
+NoNewPrivileges=yes
+PrivateTmp=yes
+ProtectSystem=strict
+ProtectHome=read-only
+ProtectKernelModules=yes
+ProtectKernelTunables=yes
+ProtectControlGroups=yes
+RestrictNamespaces=yes
+RestrictSUIDSGID=yes
+LockPersonality=yes
+MemoryDenyWriteExecute=yes
+RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6
+ReadWritePaths=/pool/db/codex /run/codex
+UMask=0077
+
+[Install]
+WantedBy=multi-user.target

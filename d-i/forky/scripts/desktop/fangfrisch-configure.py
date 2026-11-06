@@ -17,6 +17,7 @@ import tempfile
 DESTINATION = Path("/etc/fangfrisch.conf")
 FEED_BASE = os.environ.get("FANGFRISCH_URLHAUS_FEED_BASE", "")
 SANESECURITY_PREFIX = os.environ.get("FANGFRISCH_SANESECURITY_PREFIX", "")
+URLHAUS_ENABLE = os.environ.get("FANGFRISCH_URLHAUS_ENABLE")
 
 
 class PublicationFailure(Exception):
@@ -76,12 +77,21 @@ def configure(stage: Path) -> None:
     key = read_private(stage / "auth-key", 256).decode("ascii")
     if key and re.fullmatch(r"[A-Za-z0-9._~-]{1,256}", key) is None:
         raise ValueError("invalid Auth-Key")
+    if URLHAUS_ENABLE is None or URLHAUS_ENABLE == "":
+        urlhaus_enabled = bool(key)
+    elif URLHAUS_ENABLE in {"true", "false"}:
+        urlhaus_enabled = URLHAUS_ENABLE == "true"
+    else:
+        raise ValueError("FANGFRISCH_URLHAUS_ENABLE must be true or false")
+    if urlhaus_enabled and not key:
+        raise ValueError("FANGFRISCH_URLHAUS_ENABLE=true requires PRESEED_URLHAUS_AUTHKEY")
     config = configparser.ConfigParser(interpolation=configparser.ExtendedInterpolation())
     config.read_string(read_private(stage / "fangfrisch.conf", 16384).decode("utf-8"))
     config.set("urlhaus", "auth_key", key)
-    feed = f"{FEED_BASE}/${{auth_key}}/urlhaus_clamav.ndb"
-    config.set("urlhaus", "enabled", "yes" if key else "no")
-    if (not FEED_BASE or not SANESECURITY_PREFIX
+    feed = f"{FEED_BASE}/${{auth_key}}/urlhaus_clamav.ndb" if urlhaus_enabled else ""
+    config.set("urlhaus", "enabled", "yes" if urlhaus_enabled else "no")
+    if ((urlhaus_enabled and (not FEED_BASE or not FEED_BASE.startswith("https://")))
+            or not SANESECURITY_PREFIX
             or config.get("sanesecurity", "prefix") != SANESECURITY_PREFIX
             or config.get("urlhaus", "url_urlhaus", raw=True) != feed
             or config.defaults().get("log_format") != "%(levelname)s: %(message)s"

@@ -148,7 +148,7 @@ desktop_xwayland_validate_policy() {
     "$LABWC_XWAYLAND_XKBCOMP_MINIMUM_BYTES"
 
   case "$LABWC_XWAYLAND_RUNTIME_ROOT" in
-    /*|*..*|*//*|*[!ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789._/@%:+,-]*)
+    /|*..*|*//*|*[!ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789._/@%:+,-]*)
       installer_fatal "LABWC_XWAYLAND_RUNTIME_ROOT contains unsupported path syntax"
       ;;
   esac

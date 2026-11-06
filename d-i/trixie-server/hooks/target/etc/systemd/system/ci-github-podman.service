@@ -1,0 +1,44 @@
+[Unit]
+Description=GitHub runner rootless Podman API
+Requires=ci-github-podman.socket
+After=ci-github-podman.socket systemd-tmpfiles-setup.service
+RequiresMountsFor=/pool/build/runners/github /pool/cache/runners/github /pool/db/runners/github /pool/podman/users/github-runner /pool/podman/runners/github /run/ci-runners/github
+
+[Service]
+Type=exec
+User=github-runner
+Group=github-runner
+Environment=HOME=/pool/podman/users/github-runner
+Environment=XDG_RUNTIME_DIR=/run/ci-runners/github
+Environment=XDG_DATA_HOME=/pool/podman/users/github-runner/data
+Environment=XDG_CACHE_HOME=/pool/podman/users/github-runner/cache
+Environment=TMPDIR=/pool/podman/runners/github/tmp
+Environment=CONTAINERS_CONF=/etc/system-config/ci-runners/podman/github/containers.conf
+Environment=CONTAINERS_STORAGE_CONF=/etc/system-config/ci-runners/podman/github/storage.conf
+Environment=REGISTRIES_CONFIG_PATH=/etc/system-config/ci-runners/podman/github/registries.conf
+EnvironmentFile=-/etc/system-config/ci-runners/podman/github/registry-tls.env
+ExecStart=/usr/bin/podman system service --time=0 unix:///run/ci-runners/github/podman.sock
+Delegate=yes
+KillMode=control-group
+TimeoutStartSec=90s
+TimeoutStopSec=30s
+Restart=on-failure
+RestartSec=3s
+UMask=0077
+ProtectHome=read-only
+ProtectSystem=strict
+ProtectKernelTunables=yes
+ProtectKernelModules=yes
+ProtectControlGroups=yes
+PrivateTmp=yes
+ReadWritePaths=/run/ci-runners/github /pool/build/runners/github /pool/cache/runners/github /pool/db/runners/github /pool/podman/runners/github /pool/podman/users/github-runner
+RestrictNamespaces=no
+RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6
+CPUWeight=100
+IOWeight=100
+TasksMax=4096
+MemoryHigh=70%
+MemoryMax=85%
+
+[Install]
+WantedBy=multi-user.target

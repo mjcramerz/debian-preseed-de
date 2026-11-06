@@ -1,0 +1,14 @@
+#!/bin/sh
+set -eu
+umask 077
+action=${1:-}
+[ "$action" = apply ] || { printf '%s\n' 'usage: network-policy apply' >&2; exit 2; }
+policy=/etc/system-config/network.env
+[ -r "$policy" ] && [ ! -L "$policy" ] || { printf '%s\n' 'network policy is unavailable' >&2; exit 1; }
+. "$policy"
+[ -n "${SERVER_NETWORK_INTERFACE:-}" ] || { printf '%s\n' 'static interface is unset' >&2; exit 1; }
+[ -n "${SERVER_NETWORK_CIDR:-}" ] || { printf '%s\n' 'static CIDR is unset' >&2; exit 1; }
+[ -n "${SERVER_NETWORK_GATEWAY:-}" ] || { printf '%s\n' 'static gateway is unset' >&2; exit 1; }
+ip link set dev "$SERVER_NETWORK_INTERFACE" up
+ip addr replace "$SERVER_NETWORK_CIDR" dev "$SERVER_NETWORK_INTERFACE"
+ip route replace default via "$SERVER_NETWORK_GATEWAY" dev "$SERVER_NETWORK_INTERFACE"

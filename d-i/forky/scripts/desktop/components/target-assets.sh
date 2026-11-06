@@ -165,6 +165,25 @@ desktop_stage_fangfrisch() (
   set -eu
   set +x
   set +v
+  fangfrisch_urlhaus_enable=${FANGFRISCH_URLHAUS_ENABLE:-false}
+  case "$fangfrisch_urlhaus_enable" in
+    true|false) ;;
+    *)
+      installer_fatal "FANGFRISCH_URLHAUS_ENABLE must be true or false"
+      exit 1
+      ;;
+  esac
+  fangfrisch_urlhaus_feed_base=
+  fangfrisch_urlhaus_url=
+  if [ "$fangfrisch_urlhaus_enable" = true ]; then
+    fangfrisch_urlhaus_feed_base=${FANGFRISCH_URLHAUS_FEED_BASE:-}
+    [ -n "$fangfrisch_urlhaus_feed_base" ] || {
+      installer_fatal "FANGFRISCH_URLHAUS_ENABLE=true requires FANGFRISCH_URLHAUS_FEED_BASE"
+      exit 1
+    }
+    fangfrisch_urlhaus_url="${fangfrisch_urlhaus_feed_base}/\${auth_key}/urlhaus_clamav.ndb"
+  fi
+
   fangfrisch_stage=$(target_private_stage_dir fangfrisch)
   fangfrisch_stage_host=$(target_asset_host_path "$fangfrisch_stage")
   trap 'rm -rf -- "$fangfrisch_stage_host"' 0
@@ -177,10 +196,10 @@ desktop_stage_fangfrisch() (
     etc/fangfrisch.conf.tmpl \
     "${fangfrisch_stage}/fangfrisch.conf" \
     0600 \
-    FANGFRISCH_URLHAUS_FEED_BASE \
-    "$(desktop_shell_config_value "$FANGFRISCH_URLHAUS_FEED_BASE")" \
+    FANGFRISCH_URLHAUS_URL \
+    "$fangfrisch_urlhaus_url" \
     FANGFRISCH_SANESECURITY_PREFIX \
-    "$(desktop_shell_config_value "$FANGFRISCH_SANESECURITY_PREFIX")"
+    "$FANGFRISCH_SANESECURITY_PREFIX"
   if fangfrisch_key=$(preseed_env_read_value urlhaus_authkey); then
     :
   else
@@ -190,12 +209,18 @@ desktop_stage_fangfrisch() (
       *) installer_fatal "unsafe URLhaus private credential input"; exit 1 ;;
     esac
   fi
+  if [ "$fangfrisch_urlhaus_enable" = true ] && [ -z "$fangfrisch_key" ]; then
+    installer_fatal \
+      "FANGFRISCH_URLHAUS_ENABLE=true requires PRESEED_URLHAUS_AUTHKEY"
+    exit 1
+  fi
   (umask 077; printf '%s' "$fangfrisch_key" >"${fangfrisch_stage_host}/auth-key")
   unset fangfrisch_key
-  run_in_target "configure optional URLhaus authentication privately" \
+  run_in_target "configure Fangfrisch privately" \
     /usr/bin/env -i HOME=/root LC_ALL=C PATH=/usr/sbin:/usr/bin:/sbin:/bin \
-    FANGFRISCH_URLHAUS_FEED_BASE="$FANGFRISCH_URLHAUS_FEED_BASE" \
+    FANGFRISCH_URLHAUS_FEED_BASE="$fangfrisch_urlhaus_feed_base" \
     FANGFRISCH_SANESECURITY_PREFIX="$FANGFRISCH_SANESECURITY_PREFIX" \
+    FANGFRISCH_URLHAUS_ENABLE="$fangfrisch_urlhaus_enable" \
     /usr/bin/python3 -I -S -B "${fangfrisch_stage}/configure.py" "$fangfrisch_stage"
 )
 
@@ -304,7 +329,7 @@ desktop_stage_target_assets() {
   desktop_stage_role_asset etc/systemd/system/network-wifi-shutdown.service /etc/systemd/system/network-wifi-shutdown.service 0644
   desktop_stage_role_asset usr/local/bin/labwc-ai-copilots /usr/local/bin/labwc-ai-copilots 0755
   case "$AICOPILOTS_HUGGINGFACE_WEB_BASE_URL:$AICOPILOTS_HUGGINGFACE_API_BASE_URL" in
-    https://*/*:https://*/*) ;;
+    https://?*:https://?*) ;;
     *) installer_fatal 'AI copilot model service endpoints must use HTTPS URLs' ;;
   esac
   desktop_render_role_target_template \

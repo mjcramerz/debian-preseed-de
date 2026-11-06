@@ -1,0 +1,3 @@
+# Trixie server NFSv4 policy. NFSv4 uses TCP/2049; restrict new inbound
+# sessions to the profile-owned RFC1918 export network.
+add rule inet policy input tcp dport @NFS_SERVER_PORT@ ip saddr @NFS_SERVER_EXPORT_CIDR@ accept

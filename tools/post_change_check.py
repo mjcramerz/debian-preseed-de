@@ -1,7 +1,8 @@
 #!/usr/bin/env python3
-"""Run fast, non-mutating checks for every uncommitted changed file.
+"""Run fast, non-mutating checks for uncommitted Forky files only.
 
-The checker never scans an untouched path. It parses the languages for which
+The checker only inventories ``d-i/forky/`` and never scans an untouched or
+out-of-scope path. It parses the languages for which
 the repository has local or standard-library parsers, runs shell syntax and
 ShellCheck only on changed shell files, validates changed structured data, and
 performs targeted theme/AppArmor checks. It never imports project modules,
@@ -32,6 +33,8 @@ YAML_ERROR = yaml.YAMLError if yaml is not None else ValueError
 
 
 ROOT = Path(__file__).resolve().parents[1]
+FORKY_ROOT = ROOT / 'd-i/forky'
+FORKY_PREFIX = 'd-i/forky/'
 TARGET_ROOT = ROOT / 'd-i/forky/hooks/target'
 SCHEMA = ROOT / 'd-i/forky/hosts/themes/theme-schema.tsv'
 APPEARANCE_REGISTRY = TARGET_ROOT / 'usr/local/share/labwc-appearance/fields.json.tmpl'
@@ -141,7 +144,7 @@ def _run(command: list[str], *, timeout: int = 15,
 
 
 def _changed_paths() -> list[Path]:
-    """Return only existing regular files changed or untracked in this checkout."""
+    """Return existing regular changed files under the Forky tree only."""
     names: set[str] = set()
     commands = (
         ['git', 'diff', '--name-only', '-z', '--diff-filter=ACMRTUXB'],
@@ -153,12 +156,16 @@ def _changed_paths() -> list[Path]:
         if result.returncode:
             detail = (result.stderr or result.stdout).strip().replace('\n', ' ')[:300]
             raise RuntimeError(f'cannot enumerate changed files: {detail}')
-        names.update(part for part in result.stdout.split('\0') if part)
+        names.update(
+            part for part in result.stdout.split('\0')
+            if part == FORKY_PREFIX[:-1] or part.startswith(FORKY_PREFIX)
+        )
 
     paths = []
     for name in sorted(names):
         path = ROOT / name
-        if path.is_file() and not path.is_symlink() and path.is_relative_to(ROOT):
+        if (path.is_file() and not path.is_symlink()
+                and path.is_relative_to(FORKY_ROOT)):
             paths.append(path)
     return paths
 
@@ -1047,7 +1054,10 @@ def check_apparmor(paths: list[Path], errors: list[str], counts: dict[str, int])
 
 
 def check_diff(errors: list[str]) -> None:
-    for command in (['git', 'diff', '--check'], ['git', 'diff', '--cached', '--check']):
+    for command in (
+        ['git', 'diff', '--check', '--', FORKY_PREFIX[:-1]],
+        ['git', 'diff', '--cached', '--check', '--', FORKY_PREFIX[:-1]],
+    ):
         result = _run(command)
         if result.returncode:
             _report_command(errors, ' '.join(command), result)

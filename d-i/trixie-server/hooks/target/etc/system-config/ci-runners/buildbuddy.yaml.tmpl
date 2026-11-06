@@ -1,0 +1,13 @@
+app:
+  build_buddy_url: "http://@BUILDBUDDY_LISTEN@:@BUILDBUDDY_HTTP_PORT@"
+database:
+  data_source: "sqlite3:///pool/db/buildbuddy/buildbuddy.db"
+storage:
+  ttl_seconds: 86400
+  chunk_file_size_bytes: 3000000
+  disk:
+    root_directory: "@BUILDBUDDY_STATE_ROOT@/storage"
+cache:
+  max_size_bytes: 50000000000
+  disk:
+    root_directory: "@BUILDBUDDY_CACHE_ROOT@"

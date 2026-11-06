@@ -1,0 +1,28 @@
+#include <tunables/global>
+
+profile runner /usr/local/libexec/ci-runner {
+  #include <abstractions/base>
+  #include <abstractions/bash>
+
+  /usr/local/libexec/ci-runner rix,
+  /usr/bin/curl rix,
+  /usr/bin/git rix,
+  /usr/bin/tar rix,
+  /usr/bin/gzip rix,
+  /etc/system-config/ci-runners/** r,
+  /pool/build/runners/** rwk,
+  /pool/cache/runners/** rwk,
+  /pool/db/runners/** rwk,
+  /pool/podman/users/** rwk,
+  /pool/podman/users/github-runner/runner/** rix,
+  /pool/podman/users/gitlab-runner/runner/** rix,
+  /pool/podman/runners/** rwk,
+  /run/systemd/notify w,
+  /proc/sys/kernel/osrelease r,
+  /proc/self/{cmdline,comm,stat,status} r,
+  /sys/devices/system/cpu/online r,
+  network inet stream,
+  network inet6 stream,
+  deny /etc/shadow r,
+  deny /root/** rwx,
+}

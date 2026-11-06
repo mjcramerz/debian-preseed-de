@@ -1,0 +1,5 @@
+# Base server sshd configuration; profile-specific values are rendered into
+# /etc/ssh/sshd_config.d/90-policy.conf by the late stage.
+Include /etc/ssh/sshd_config.d/*.conf
+UsePAM yes
+Subsystem sftp /usr/lib/openssh/sftp-server

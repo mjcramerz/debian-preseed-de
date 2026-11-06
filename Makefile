@@ -1,7 +1,7 @@
 PYTHON ?= python3
 .DEFAULT_GOAL := build
 
-.PHONY: build inventory check test test-bootstrap test-debconf test-cuda audit validate themes test-isolation post-change-check static-check
+.PHONY: build build-trixie inventory check test test-bootstrap test-debconf test-cuda audit validate themes test-isolation post-change-check post-change-check-trixie static-check
 
 # Check before unittest discovery, including newly added test modules.
 test-isolation:
@@ -10,6 +10,8 @@ test-isolation:
 check test test-bootstrap test-debconf test-cuda audit validate: test-isolation
 build:
 	$(PYTHON) -B tools/build.py
+build-trixie:
+	$(PYTHON) -B tools/build_trixie.py
 inventory:
 	@$(PYTHON) -I -B tools/inventory.py --refresh-apt
 check:
@@ -33,3 +35,5 @@ themes:
 
 post-change-check static-check:
 	$(PYTHON) -B tools/post_change_check.py
+post-change-check-trixie:
+	$(PYTHON) -B tools/post_change_check_trixie.py

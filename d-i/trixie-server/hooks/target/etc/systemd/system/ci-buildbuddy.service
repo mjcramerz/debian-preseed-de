@@ -1,0 +1,40 @@
+[Unit]
+Description=Local BuildBuddy cache
+After=network-online.target systemd-tmpfiles-setup.service
+Wants=network-online.target
+RequiresMountsFor=/pool/db/buildbuddy /pool/cache/buildbuddy /pool/podman/users/buildbuddy /run/buildbuddy
+ConditionPathExists=/usr/local/libexec/buildbuddy
+ConditionPathExists=/etc/system-config/ci-runners/buildbuddy.yaml
+
+[Service]
+Type=exec
+User=buildbuddy
+Group=buildbuddy
+Environment=HOME=/pool/podman/users/buildbuddy
+Environment=XDG_DATA_HOME=/pool/podman/users/buildbuddy/data
+Environment=XDG_CACHE_HOME=/pool/podman/users/buildbuddy/cache
+Environment=TMPDIR=/pool/db/buildbuddy/tmp
+WorkingDirectory=/pool/db/buildbuddy
+ExecStart=/usr/local/libexec/buildbuddy --config_file=/etc/system-config/ci-runners/buildbuddy.yaml --listen=127.0.0.1 --port=8080 --grpc_port=1985
+Restart=on-failure
+RestartSec=5s
+TimeoutStartSec=120s
+TimeoutStopSec=30s
+KillMode=control-group
+NoNewPrivileges=yes
+PrivateTmp=yes
+ProtectSystem=strict
+ProtectHome=read-only
+ProtectKernelModules=yes
+ProtectKernelTunables=yes
+ProtectControlGroups=yes
+RestrictNamespaces=yes
+RestrictSUIDSGID=yes
+LockPersonality=yes
+MemoryDenyWriteExecute=yes
+RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6
+ReadWritePaths=/pool/db/buildbuddy /pool/cache/buildbuddy /pool/podman/users/buildbuddy /run/buildbuddy
+UMask=0077
+
+[Install]
+WantedBy=multi-user.target

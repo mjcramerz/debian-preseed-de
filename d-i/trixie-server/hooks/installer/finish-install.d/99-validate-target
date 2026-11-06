@@ -1,0 +1,20 @@
+#!/bin/sh
+set -eu
+umask 077
+
+target=${INSTALLER_TARGET_DIR:-/target}
+[ -d "$target" ] && [ ! -L "$target" ] || { printf '%s\n' 'fatal: target root is unavailable' >&2; exit 1; }
+for required in \
+  "$target/etc/fstab" \
+  "$target/etc/system-config/profile.env" \
+  "$target/etc/system-config/network.env" \
+  "$target/etc/nftables.conf" \
+  "$target/etc/ssh/sshd_config.d/90-policy.conf"; do
+  [ -f "$required" ] && [ ! -L "$required" ] || {
+    printf 'fatal: required target file is missing: %s\n' "$required" >&2
+    exit 1
+  }
+done
+case "$(awk -F= '$1 == "SERVER_SSH_PORT" {print $2; found=1} END {exit !found}' "$target/etc/system-config/profile.env")" in
+  ''|*[!0-9]*) printf '%s\n' 'fatal: rendered SSH port is invalid' >&2; exit 1 ;;
+esac

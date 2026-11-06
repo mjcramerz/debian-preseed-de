@@ -15,10 +15,11 @@ enabled = yes
 prefix = __INSTALLER_FANGFRISCH_SANESECURITY_PREFIX__
 
 [urlhaus]
-# Enabled privately by the installer only when PRESEED_URLHAUS_AUTHKEY is set.
+# The installer always publishes this configuration and any supplied Auth-Key.
+# FANGFRISCH_URLHAUS_ENABLE controls provider enablement and URL materialization.
 enabled = no
 auth_key =
 interval = 10m
-url_urlhaus = __INSTALLER_FANGFRISCH_URLHAUS_FEED_BASE__/${auth_key}/urlhaus_clamav.ndb
+url_urlhaus = __INSTALLER_FANGFRISCH_URLHAUS_URL__
 filename_urlhaus = urlhaus_clamav.ndb
 max_size = 40MB

@@ -1,0 +1,17 @@
+#!/bin/sh
+set -eu
+umask 077
+
+action=${1:-}
+case "$action" in
+  serve) ;;
+  *) printf '%s\n' 'usage: codex-app serve' >&2; exit 2 ;;
+esac
+if command -v codex >/dev/null 2>&1; then
+  exec codex app-server
+fi
+if [ -x /opt/codex/bin/codex ]; then
+  exec /opt/codex/bin/codex app-server
+fi
+printf '%s\n' 'Codex executable is not installed; check the pinned archive inputs' >&2
+exit 1

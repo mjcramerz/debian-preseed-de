@@ -50,10 +50,12 @@ def auth_key() -> bytes:
     config.read_string(raw.decode("utf-8"))
     key = config.get("urlhaus", "auth_key", raw=True)
     feed = config.get("urlhaus", "url_urlhaus", raw=True)
+    enabled = config.getboolean("urlhaus", "enabled")
     if (key and re.fullmatch(r"[A-Za-z0-9._~-]{1,256}", key) is None
-            or config.getboolean("urlhaus", "enabled") != bool(key)
-            or not feed.startswith("https://")
-            or "${auth_key}" not in feed
+            or (enabled and not key)
+            or (enabled and (not feed.startswith("https://")
+                             or "${auth_key}" not in feed))
+            or (not enabled and feed)
             or config.defaults().get("log_format") != LOG_FORMAT
             or any(config.get(section, "log_method") != "console" for section in config)):
         raise UpdateFailure("invalid-private-configuration")

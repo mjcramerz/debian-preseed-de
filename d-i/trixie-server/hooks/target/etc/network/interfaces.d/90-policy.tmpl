@@ -1,0 +1,8 @@
+# Managed by the installer static network class.
+auto lo
+iface lo inet loopback
+allow-hotplug @NETWORK_INTERFACE@
+iface @NETWORK_INTERFACE@ inet static
+    address @NETWORK_CIDR@
+    gateway @NETWORK_GATEWAY@
+    dns-nameservers @NETWORK_NAMESERVERS@

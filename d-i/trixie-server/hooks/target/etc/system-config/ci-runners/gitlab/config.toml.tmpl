@@ -1,0 +1,84 @@
+concurrent = 1
+check_interval = 3
+shutdown_timeout = 0
+
+[[runners]]
+  name = "@RUNNER_NAME@"
+  url = "@RUNNER_URL@"
+  token = "@RUNNER_TOKEN@"
+  executor = "@RUNNER_EXECUTOR@"
+  builds_dir = "@RUNNER_BUILDS_DIR@"
+  cache_dir = "@RUNNER_CACHE_DIR@"
+  environment = [
+    "HOME=@RUNNER_HOME@",
+    "FF_NETWORK_PER_BUILD=1",
+    "XDG_DATA_HOME=@RUNNER_HOME@/data",
+    "XDG_CACHE_HOME=@RUNNER_HOME@/cache",
+    "XDG_RUNTIME_DIR=@RUNNER_RUNTIME_DIR@",
+    "CONTAINER_HOST=@RUNNER_DOCKER_HOST@",
+    "DOCKER_HOST=@RUNNER_DOCKER_HOST@",
+    "CC=gcc",
+    "CXX=g++",
+    "CCACHE_DIR=@RUNNER_CACHE_ROOT@/compiler/ccache",
+    "SCCACHE_DIR=@RUNNER_CACHE_ROOT@/compiler/sccache",
+    "CCACHE_COMPILERCHECK=content",
+    "CCACHE_BASEDIR=@RUNNER_BUILD_ROOT@",
+    "CMAKE_C_COMPILER_LAUNCHER=ccache",
+    "CMAKE_CXX_COMPILER_LAUNCHER=ccache",
+    "RUSTC_WRAPPER=sccache",
+    "CARGO_HOME=@RUNNER_CACHE_ROOT@/rust/cargo",
+    "RUSTUP_HOME=@RUNNER_DB_ROOT@/rust/rustup",
+    "CARGO_TARGET_DIR=@RUNNER_BUILD_ROOT@/rust/target",
+    "GOCACHE=@RUNNER_CACHE_ROOT@/go/build",
+    "GOMODCACHE=@RUNNER_CACHE_ROOT@/go/module",
+    "GOPATH=@RUNNER_BUILD_ROOT@/go/workspace",
+    "PIP_CACHE_DIR=@RUNNER_CACHE_ROOT@/python/pip",
+    "VIRTUAL_ENV=@RUNNER_BUILD_ROOT@/python/venv",
+    "npm_config_cache=@RUNNER_CACHE_ROOT@/node/npm",
+    "YARN_CACHE_FOLDER=@RUNNER_CACHE_ROOT@/node/yarn",
+    "PNPM_HOME=@RUNNER_CACHE_ROOT@/node/pnpm",
+    "MAVEN_OPTS=-Dmaven.repo.local=@RUNNER_CACHE_ROOT@/jvm/maven",
+    "GRADLE_USER_HOME=@RUNNER_CACHE_ROOT@/jvm/gradle",
+    "NUGET_PACKAGES=@RUNNER_CACHE_ROOT@/dotnet/nuget",
+    "COMPOSER_CACHE_DIR=@RUNNER_CACHE_ROOT@/php/composer",
+    "SWIFTPM_MODULECACHE=@RUNNER_CACHE_ROOT@/swift/spm",
+    "CABAL_DIR=@RUNNER_CACHE_ROOT@/haskell/cabal",
+    "STACK_ROOT=@RUNNER_CACHE_ROOT@/haskell/stack",
+    "MIX_HOME=@RUNNER_CACHE_ROOT@/elixir/mix",
+    "HEX_HOME=@RUNNER_CACHE_ROOT@/elixir/hex",
+    "REBAR_CACHE_DIR=@RUNNER_CACHE_ROOT@/erlang/rebar3",
+    "COURSIER_CACHE=@RUNNER_CACHE_ROOT@/scala/coursier",
+    "SBT_IVY_HOME=@RUNNER_CACHE_ROOT@/scala/sbt/ivy2",
+    "SBT_GLOBAL_BASE=@RUNNER_CACHE_ROOT@/scala/sbt/global",
+    "PUB_CACHE=@RUNNER_CACHE_ROOT@/dart/pub",
+    "ZIG_GLOBAL_CACHE_DIR=@RUNNER_CACHE_ROOT@/zig/global",
+    "ZIG_LOCAL_CACHE_DIR=@RUNNER_CACHE_ROOT@/zig/local",
+    "JULIA_DEPOT_PATH=@RUNNER_CACHE_ROOT@/julia/depot",
+    "R_LIBS_USER=@RUNNER_CACHE_ROOT@/r/library",
+    "BUNDLE_USER_CONFIG=@RUNNER_CACHE_ROOT@/ruby/bundle",
+    "PERL_CPANM_HOME=@RUNNER_CACHE_ROOT@/perl/cpan",
+    "TF_PLUGIN_CACHE_DIR=@RUNNER_CACHE_ROOT@/hashicorp/terraform/plugins",
+    "ANSIBLE_HOME=@RUNNER_DB_ROOT@/ansible",
+    "ANSIBLE_LOCAL_TEMP=@RUNNER_BUILD_ROOT@/ansible/work",
+    "ANSIBLE_GALAXY_CACHE_DIR=@RUNNER_CACHE_ROOT@/ansible/galaxy",
+    "BAZELISK_HOME=@RUNNER_DB_ROOT@/bazel/home",
+    "BAZEL_DISK_CACHE=@RUNNER_CACHE_ROOT@/bazel/disk",
+    "BAZEL_REPOSITORY_CACHE=@RUNNER_CACHE_ROOT@/bazel/repository",
+    "BAZEL_OUTPUT_USER_ROOT=@RUNNER_BUILD_ROOT@/bazel/output",
+    "BAZELRC=@RUNNER_BAZELRC@",
+    "BUILDBUDDY_REMOTE_CACHE=@RUNNER_BUILDBUDDY_REMOTE_CACHE@"
+  ]
+  [runners.docker]
+    host = "@RUNNER_DOCKER_HOST@"
+    image = "@RUNNER_DOCKER_IMAGE@"
+    pull_policy = ["@RUNNER_DOCKER_PULL_POLICY@"]
+    privileged = false
+    volumes = [
+      "@RUNNER_BUILDS_DIR@:/builds",
+      "@RUNNER_CACHE_DIR@:/cache",
+      "@RUNNER_BUILD_ROOT@:@RUNNER_BUILD_ROOT@",
+      "@RUNNER_CACHE_ROOT@:@RUNNER_CACHE_ROOT@",
+      "@RUNNER_DB_ROOT@:@RUNNER_DB_ROOT@",
+      "@RUNNER_HOME@:@RUNNER_HOME@",
+      "/etc/system-config/ci-runners/gitlab.bazelrc:/etc/system-config/ci-runners/gitlab.bazelrc:ro"
+    ]

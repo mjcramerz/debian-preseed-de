@@ -1,0 +1,15 @@
+#include <tunables/global>
+
+profile srv-codex /usr/local/libexec/codex-app {
+  #include <abstractions/base>
+  /usr/local/libexec/codex-app rix,
+  /usr/bin/codex rix,
+  /opt/codex/** rix,
+  /etc/codex/** r,
+  /pool/db/codex/** rwk,
+  /run/codex/** rwk,
+  network inet stream,
+  network inet6 stream,
+  deny /etc/shadow r,
+  deny /root/** rwx,
+}

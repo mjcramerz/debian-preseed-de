@@ -1,0 +1,2 @@
+# GitHub runner class: retain explicit identity policy for future default-drop output.
+add rule inet policy output meta skuid github-runner accept

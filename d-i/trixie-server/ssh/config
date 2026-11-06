@@ -1,0 +1,7 @@
+Host *
+    HashKnownHosts yes
+    IdentitiesOnly yes
+    ServerAliveInterval 60
+    ServerAliveCountMax 3
+    ForwardAgent no
+    ForwardX11 no

@@ -1,0 +1,110 @@
+#!/bin/sh
+set -eu
+umask 077
+
+kind=${1:-}
+action=${2:-}
+case "$kind:$action" in
+  github:run) config=/etc/system-config/ci-runners/github.env ;;
+  gitlab:run) config=/etc/system-config/ci-runners/gitlab.env ;;
+  *)
+    printf '%s\n' 'usage: ci-runner {github|gitlab} run' >&2
+    exit 2
+    ;;
+esac
+[ -r "$config" ] && [ ! -L "$config" ] || { printf '%s\n' 'runner configuration is unavailable' >&2; exit 1; }
+# shellcheck disable=SC1090
+. "$config"
+
+case "$kind" in
+  github) expected_root=/pool/podman/users/github-runner/runner ;;
+  gitlab) expected_root=/pool/podman/users/gitlab-runner/runner ;;
+esac
+[ "${RUNNER_ROOT:-}" = "$expected_root" ] || {
+  printf '%s\n' 'runner configuration root does not match service policy' >&2
+  exit 1
+}
+[ -r "${RUNNER_TOKEN_FILE:-}" ] && [ ! -L "${RUNNER_TOKEN_FILE:-}" ] || {
+  printf '%s\n' 'runner token file is unavailable' >&2
+  exit 1
+}
+[ -n "${RUNNER_URL:-}" ] || { printf '%s\n' 'runner URL is empty' >&2; exit 1; }
+[ -n "${RUNNER_NAME:-}" ] || { printf '%s\n' 'runner name is empty' >&2; exit 1; }
+[ -n "${RUNNER_LABELS:-}" ] || { printf '%s\n' 'runner labels or tags are empty' >&2; exit 1; }
+token=$(cat "$RUNNER_TOKEN_FILE") || { printf '%s\n' 'runner token file cannot be read' >&2; exit 1; }
+[ -n "$token" ] || { printf '%s\n' 'runner token file is empty' >&2; exit 1; }
+
+case "$kind" in
+  github)
+    if [ ! -f "$RUNNER_ROOT/.runner" ]; then
+      [ -x "$RUNNER_ROOT/config.sh" ] || { printf '%s\n' 'GitHub runner config script is unavailable' >&2; exit 1; }
+      "$RUNNER_ROOT/config.sh" --unattended --replace --disableupdate \
+        --url "$RUNNER_URL" --token "$token" --name "$RUNNER_NAME" \
+        --labels "$RUNNER_LABELS" --work "$RUNNER_WORK_DIR" >/dev/null
+    fi
+    unset token
+    if [ -x "$RUNNER_ROOT/run.sh" ]; then
+      exec "$RUNNER_ROOT/run.sh"
+    fi
+    if [ -x "$RUNNER_ROOT/bin/Runner.Listener" ]; then
+      exec "$RUNNER_ROOT/bin/Runner.Listener" run
+    fi
+    ;;
+  gitlab)
+    runner_binary="$RUNNER_ROOT/gitlab-runner"
+    [ -x "$runner_binary" ] || runner_binary="$RUNNER_ROOT/bin/gitlab-runner"
+    [ -x "$runner_binary" ] || { printf '%s\n' 'GitLab runner binary is unavailable' >&2; exit 1; }
+    runner_config=${RUNNER_CONFIG:-$RUNNER_ROOT/config.toml}
+    [ "$runner_config" = "$RUNNER_ROOT/config.toml" ] || {
+      printf '%s\n' 'GitLab runner config path does not match service policy' >&2
+      exit 1
+    }
+    if [ ! -s "$runner_config" ]; then
+      [ -r "${RUNNER_CONFIG_TEMPLATE:-}" ] && [ ! -L "${RUNNER_CONFIG_TEMPLATE:-}" ] || {
+        printf '%s\n' 'GitLab runner config template is unavailable' >&2
+        exit 1
+      }
+      registration_config="$RUNNER_ROOT/.registration.toml.$$"
+      : >"$registration_config"
+      chmod 0600 "$registration_config"
+      "$runner_binary" register --non-interactive --config "$registration_config" \
+        --url "$RUNNER_URL" --token "$token" --name "$RUNNER_NAME" \
+        --executor "$RUNNER_EXECUTOR" --docker-host "$RUNNER_DOCKER_HOST" \
+        --docker-image "$RUNNER_DOCKER_IMAGE" \
+        --docker-pull-policy "$RUNNER_DOCKER_PULL_POLICY" \
+        --docker-volumes "$RUNNER_DOCKER_VOLUMES" \
+        --tag-list "$RUNNER_LABELS" --builds-dir "$RUNNER_BUILDS_DIR" \
+        --cache-dir "$RUNNER_CACHE_DIR" >/dev/null
+      registered_token=$(awk -F= '/^[[:space:]]*token[[:space:]]*=/{gsub(/[[:space:]\"]/, "", $2); print $2; exit}' "$registration_config")
+      rm -f "$registration_config"
+      [ -n "$registered_token" ] || { printf '%s\n' 'GitLab registration did not return a runner token' >&2; exit 1; }
+      case "$registered_token" in *[!ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789._:-]*)
+        printf '%s\n' 'GitLab registration returned an unsafe runner token' >&2
+        exit 1
+        ;;
+      esac
+      rendered_config="$RUNNER_ROOT/.config.toml.$$"
+      awk -v name="$RUNNER_NAME" -v url="$RUNNER_URL" -v token="$registered_token" \
+        -v executor="$RUNNER_EXECUTOR" -v builds="$RUNNER_BUILDS_DIR" -v cache="$RUNNER_CACHE_DIR" \
+        -v host="$RUNNER_DOCKER_HOST" -v image="$RUNNER_DOCKER_IMAGE" -v pull="$RUNNER_DOCKER_PULL_POLICY" \
+        -v home="$RUNNER_HOME" -v runtime="$RUNNER_RUNTIME_DIR" -v build_root="$RUNNER_BUILD_ROOT" \
+        -v cache_root="$RUNNER_CACHE_ROOT" -v db_root="$RUNNER_DB_ROOT" \
+        -v bazelrc="$RUNNER_BAZELRC" -v buildbuddy="$RUNNER_BUILDBUDDY_REMOTE_CACHE" \
+        '{ gsub("@RUNNER_NAME@", name); gsub("@RUNNER_URL@", url); gsub("@RUNNER_TOKEN@", token); \
+           gsub("@RUNNER_EXECUTOR@", executor); gsub("@RUNNER_BUILDS_DIR@", builds); gsub("@RUNNER_CACHE_DIR@", cache); \
+           gsub("@RUNNER_DOCKER_HOST@", host); gsub("@RUNNER_DOCKER_IMAGE@", image); \
+           gsub("@RUNNER_DOCKER_PULL_POLICY@", pull); gsub("@RUNNER_HOME@", home); \
+           gsub("@RUNNER_RUNTIME_DIR@", runtime); gsub("@RUNNER_BUILD_ROOT@", build_root); \
+           gsub("@RUNNER_CACHE_ROOT@", cache_root); gsub("@RUNNER_DB_ROOT@", db_root); \
+           gsub("@RUNNER_BAZELRC@", bazelrc); gsub("@RUNNER_BUILDBUDDY_REMOTE_CACHE@", buildbuddy); print }' \
+        "$RUNNER_CONFIG_TEMPLATE" >"$rendered_config"
+      chmod 0600 "$rendered_config"
+      mv -f "$rendered_config" "$runner_config"
+    fi
+    unset token
+    exec "$runner_binary" run --config "$runner_config" \
+      --working-directory "$RUNNER_WORK_DIR" --user gitlab-runner
+    ;;
+esac
+printf '%s\n' 'runner archive does not contain a supported listener' >&2
+exit 1

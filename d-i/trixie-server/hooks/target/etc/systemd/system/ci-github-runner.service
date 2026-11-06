@@ -1,0 +1,47 @@
+[Unit]
+Description=GitHub Actions self-hosted runner
+After=network-online.target
+Wants=network-online.target
+Requires=ci-github-podman.socket
+After=ci-github-podman.socket
+ConditionPathExists=/etc/system-config/ci-runners/github.env
+ConditionPathExists=/usr/local/libexec/ci-runner
+
+[Service]
+Type=exec
+User=github-runner
+Group=github-runner
+EnvironmentFile=/etc/system-config/ci-runners/github.env
+EnvironmentFile=-/etc/system-config/ci-runners/github.toolchain.env
+Environment=HOME=/pool/podman/users/github-runner
+Environment=XDG_RUNTIME_DIR=/run/ci-runners/github
+Environment=XDG_DATA_HOME=/pool/podman/users/github-runner/data
+Environment=XDG_CACHE_HOME=/pool/podman/users/github-runner/cache
+Environment=TMPDIR=/pool/podman/runners/github/tmp
+Environment=CONTAINER_HOST=unix:///run/ci-runners/github/podman.sock
+ExecStart=/usr/local/libexec/ci-runner github run
+Restart=on-failure
+RestartSec=10s
+TimeoutStartSec=120s
+TimeoutStopSec=30s
+KillMode=control-group
+NoNewPrivileges=yes
+PrivateTmp=yes
+ProtectSystem=strict
+ProtectHome=read-only
+ProtectKernelModules=yes
+ProtectKernelTunables=yes
+ProtectControlGroups=yes
+RestrictNamespaces=yes
+RestrictSUIDSGID=yes
+LockPersonality=yes
+MemoryDenyWriteExecute=yes
+RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6
+ReadWritePaths=/pool/cache/runners/github
+ReadWritePaths=/pool/build/runners/github
+ReadWritePaths=/pool/podman/users/github-runner
+ReadWritePaths=/pool/db/runners/github
+UMask=0077
+
+[Install]
+WantedBy=multi-user.target

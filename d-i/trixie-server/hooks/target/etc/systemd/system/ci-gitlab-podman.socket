@@ -1,0 +1,16 @@
+[Unit]
+Description=GitLab runner rootless Podman API socket
+RequiresMountsFor=/pool/db/runners/gitlab /run/ci-runners/gitlab
+Before=ci-gitlab-podman.service
+
+[Socket]
+ListenStream=/run/ci-runners/gitlab/podman.sock
+SocketUser=gitlab-runner
+SocketGroup=gitlab-runner
+SocketMode=0660
+DirectoryMode=0710
+RemoveOnStop=yes
+Service=ci-gitlab-podman.service
+
+[Install]
+WantedBy=sockets.target
