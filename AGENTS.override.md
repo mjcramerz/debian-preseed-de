@@ -74,6 +74,51 @@ It remains separate from the pure `make build` serialization path.
 
 ## Work in this checkout
 
+## Cross-component contract audit is mandatory
+
+Treat every component-specific change as a shared-contract change until the
+repository evidence proves otherwise. Auditing ChatGPT, Ledger, or any other
+single application in isolation is incomplete when the same policy schema,
+shared environment, downloader, installer stage, servicing CLI, vendor helper,
+runtime module, desktop entry, AppArmor policy, renderer, or generated payload
+is used by sibling components.
+
+For every affected component, first inventory and inspect all related
+components and all shared callers. At minimum, review the complete applicable
+set of managed software, including Bitwarden, QoreDB, Obsidian, Tomat, Sleek,
+Postman, Discord, Tuta, Ledger, ChatGPT/Codex, and any other application that
+uses the affected contract. Extend the inventory when the source reveals more
+consumers; do not stop after fixing the first reported failure.
+
+The audit must trace each affected contract through all of these layers when
+present:
+
+- shared defaults and selected host-profile overrides;
+- policy templates, rendered policy files, and variable validation;
+- late installer scripts, architecture gates, download categories, hashes,
+  signatures, size/member/extraction limits, and retry behavior;
+- servicing modules, CLI constructors, dynamic dispatch, post-install hooks,
+  package maintainer bridges, and installed helper entrypoints;
+- target paths, desktop entries, icons, schemas, AppArmor profiles, services,
+  timers, runtime configuration, and authorization boundaries;
+- tests and source fixtures that instantiate or assert the affected contract;
+- generated payload, manifest, and preseed products whenever their inputs
+  change.
+
+For policy or constructor changes, enumerate every constructor and dispatch
+call site, every required attribute, every policy-shape consumer, and every
+component-specific policy scope. Verify that no sibling path still uses an old
+argument shape, stale URL, hash, size limit, architecture branch, filename,
+or hard-coded fallback. A fix is incomplete while any related call site or
+rendering path remains unaudited.
+
+Use repository-wide text and structural inspection to perform this inventory;
+do not rely on the first stack trace, one application name, or one generated
+file. Report the inspected sibling set, changed owners, generated artifacts,
+and any remaining verification limits. Keep validation within the static-only
+rules below; this requirement does not authorize tests, installer execution,
+host access, network acquisition, or disposable environments.
+
 `make build` is generation only. It may write exactly `d-i/forky/payload.tar.gz`,
 `d-i/forky/payload.manifest`, and `d-i/forky/preseed.cfg`. It must not execute any
 tests, validators, shell snippets, browser generators, policy parsers or host

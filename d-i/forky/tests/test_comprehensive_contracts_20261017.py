@@ -758,7 +758,10 @@ require $ARGV[0];
     *APTRepoLocal::Servicing::ChatGPT::_live_apparmor_interface_is_available = sub { 1 };
     *APTRepoLocal::Servicing::ChatGPT::_reload_policy_if_available = sub { die "fixture reload failure\n" };
 }
-my $object = APTRepoLocal::Servicing::ChatGPT->new(state => bless({}, 'FixtureState'));
+my $object = APTRepoLocal::Servicing::ChatGPT->new(
+    state => bless({}, 'FixtureState'),
+    release_policy => {},
+);
 $object->prepare_install($ARGV[1]);
 die 'missing pre-publication snapshot' unless -f APTRepoLocal::Servicing::ChatGPT::POLICY_RECOVERY().'/previous.json';
 my $ok = eval { $object->abort_install(); 1 };

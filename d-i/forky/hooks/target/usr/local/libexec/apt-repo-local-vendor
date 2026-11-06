@@ -22,14 +22,18 @@ my ($action, $app, $work) = @ARGV;
 defined $action or die "missing apt-repo-local-vendor action\n";
 my $json = JSON::PP->new->canonical;
 my $state = APTRepoLocal::Servicing::State->new();
-my $chatgpt = APTRepoLocal::Servicing::ChatGPT->new(state => $state);
+my $cli = APTRepoLocal::Servicing::CLI->new();
+my $release_policy = $cli->_software_release_policy();
+my $chatgpt = APTRepoLocal::Servicing::ChatGPT->new(
+    state => $state,
+    release_policy => $release_policy,
+);
 open my $result_fh, '>&', \*STDOUT or die "cannot preserve result stream: $!\n";
 open STDOUT, '>&', \*STDERR or die "cannot redirect verifier diagnostics: $!\n";
 sub result { print {$result_fh} $json->encode($_[0]), "\n" or die "cannot write result\n"; }
 
 if ($action eq 'defaults') {
     @ARGV == 1 or die "unexpected defaults arguments\n";
-    my $cli = APTRepoLocal::Servicing::CLI->new();
     my %defaults;
     for my $spec ($cli->_generic_deb_specs($chatgpt)) {
         for my $package (@{$spec->{packages}}) {
@@ -40,12 +44,12 @@ if ($action eq 'defaults') {
             };
         }
     }
-    $defaults{obsidian} = { automatic => JSON::PP::true, url => 'https://github.com/obsidianmd/obsidian-releases/releases/latest' };
-    $defaults{sleek} = { automatic => JSON::PP::true, url => 'https://github.com/ransome1/sleek/releases/latest' };
+    $defaults{obsidian} = { automatic => JSON::PP::true, url => $release_policy->{service_urls}{obsidian_discovery} };
+    $defaults{sleek} = { automatic => JSON::PP::true, url => $release_policy->{service_urls}{sleek_discovery} };
     # Upstream publishes versioned Debian assets. A legacy filename hint would
     # filter those out before the updater's strict Tomat identity checks.
-    $defaults{tomat} = { automatic => JSON::PP::true, url => 'https://github.com/jolars/tomat/releases' };
-    $defaults{'qore-db'} = { automatic => JSON::PP::true, url => 'https://github.com/QoreDB/QoreDB/releases/latest' };
+    $defaults{tomat} = { automatic => JSON::PP::true, url => $release_policy->{service_urls}{tomat_discovery} };
+    $defaults{'qore-db'} = { automatic => JSON::PP::true, url => $release_policy->{service_urls}{qoredb_discovery} };
     result(\%defaults);
     exit 0;
 }
@@ -90,10 +94,14 @@ my $lock = $state->lock();
 defined $lock or die "another explicit vendor operation is running\n";
 my %classes = (discord => 'Discord', postman => 'Postman', tuta => 'Tuta', ledger => 'Ledger');
 my $class = 'APTRepoLocal::Servicing::' . $classes{$app};
+my $vendor_policy = $app eq 'discord' ? $release_policy->{discord}
+    : $app eq 'ledger' ? $release_policy->{ledger}
+    : $release_policy;
 my $vendor = $class->new(
     http => APTRepoLocal::Servicing::HTTP->new(),
     event => APTRepoLocal::Servicing::Event->new(directory => $state->event_dir()),
     state => $state,
+    release_policy => $vendor_policy,
 );
 # Metadata-only gate. The Python repository compares this identity against
 # the PUBLISHED package, not the installed version (apt upgrade may run later).
@@ -102,8 +110,10 @@ if ($action eq 'probe') {
         my $manifest = "$work/probe-discord.json";
         $vendor->http()->download(
             label => 'Discord release metadata',
-            url => APTRepoLocal::Servicing::Discord::MANIFEST_URL(),
-            destination => $manifest, minimum => 256, maximum => 1_048_576,
+            url => $vendor_policy->{manifest_url},
+            destination => $manifest,
+            minimum => $vendor_policy->{manifest_minimum_bytes},
+            maximum => $vendor_policy->{manifest_maximum_bytes},
             content_policy => 'metadata',
             user_agent => APTRepoLocal::Servicing::Discord::DISTRO_USER_AGENT(),
         );
@@ -119,8 +129,10 @@ if ($action eq 'probe') {
         my $metadata = "$work/probe-ledger.yml";
         $vendor->http()->download(
             label => 'Ledger release metadata',
-            url => 'https://download.live.ledger.com/latest-linux.yml',
-            destination => $metadata, minimum => 128, maximum => 65_536,
+            url => $vendor_policy->{metadata_url},
+            destination => $metadata,
+            minimum => $vendor_policy->{metadata_minimum_bytes},
+            maximum => $vendor_policy->{metadata_maximum_bytes},
             content_policy => 'metadata',
         );
         my $release = $vendor->_parse_metadata($metadata);

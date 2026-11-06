@@ -1228,7 +1228,7 @@ a85ef69ecd9c4a3ee228194f1942e1ed091ce4cc6aa5b83c919c63d3ec953cb9  hooks/target/u
 a2badcd4b8761cc70b36477cfa8830ab6a5335e5873581eb8959f753ce771e99  hooks/target/usr/local/lib/perl5/site_perl/apt-repo-local/APTRepoLocal/Servicing/ArtifactLimits.pm.tmpl
 e336d444fc712843e6fe226638c32fde7c0d078c05c82b13a949270b5dd383ed  hooks/target/usr/local/lib/perl5/site_perl/apt-repo-local/APTRepoLocal/Servicing/Atomic.pm
 6984c2df9333a7e9d0ac7c0bdccf7513080869ae1957cf0a4cec5d775c4eb47e  hooks/target/usr/local/lib/perl5/site_perl/apt-repo-local/APTRepoLocal/Servicing/Bitwarden.pm
-21f9561e85330bd234e71aa088072783afe6f6ccd318429e823aa45c31753a25  hooks/target/usr/local/lib/perl5/site_perl/apt-repo-local/APTRepoLocal/Servicing/CLI.pm
+bac1e2734fd8244ab10a40550a6db4320681d051a25379fd97b3bb5ddf5387b3  hooks/target/usr/local/lib/perl5/site_perl/apt-repo-local/APTRepoLocal/Servicing/CLI.pm
 8e2716dc811684856eb1b0f52811b60ff4a67d020f98d0e44b7deb05740be2bd  hooks/target/usr/local/lib/perl5/site_perl/apt-repo-local/APTRepoLocal/Servicing/ChatGPT.pm
 79b7ee31bbebdbe54151b71d141d20ea7a8c5981f4da7dfabb7db72ef4c6265c  hooks/target/usr/local/lib/perl5/site_perl/apt-repo-local/APTRepoLocal/Servicing/Deb.pm
 13de9695c074c4d4ab8f9cc9eb0008a261fb848816a692d1ab9bc090a7640e85  hooks/target/usr/local/lib/perl5/site_perl/apt-repo-local/APTRepoLocal/Servicing/Discord.pm
@@ -1477,7 +1477,7 @@ b1d6c16bd0ee8a15d599c26016b91a87275294383113860a60e58f29fe4a7f63  hooks/target/u
 46b2adb550b8060a68c36fe047ed9dd054b97cffbb98a659a8eb73542123913e  hooks/target/usr/local/libexec/apt-repo-local-normalize-sources
 dca12746af6af74afc022adc82a814828871c2b46e2c49b3d0b08e8b226340cf  hooks/target/usr/local/libexec/apt-repo-local-software-notify
 2dbd649f5ebf87e90d749ab62018abed009cb75d5f25705dcdc5f829d1141f71  hooks/target/usr/local/libexec/apt-repo-local-software-update
-99e7dfc57401e2ccb7728388b8bc171281e34fbd969bf5f9f2a32cd8fb778936  hooks/target/usr/local/libexec/apt-repo-local-vendor
+927f530e3a26ef90d7f6e6dddd83b8f6e8e3c05f0fb56d2cbaa9ec619ca7b690  hooks/target/usr/local/libexec/apt-repo-local-vendor
 b27862d8540df98771edaf951fb11e29d38147762832923c3c9d95635e435535  hooks/target/usr/local/libexec/apt-repo-local.tmpl
 a3ef33fbea9b07536601947dbef27fd0c9bd1b782f7874124dca6fc970d458c2  hooks/target/usr/local/libexec/aptly-publishing
 0a5dfcd31d5efa6c5d7a7d673a4c0c2b56f82ba328fc7557fa28bdd41c326210  hooks/target/usr/local/libexec/augenrules-quiet
@@ -1734,7 +1734,7 @@ ca7c235f58781eb920ee197b243b0b58ddc669f54a6b55f4b2e605d00ad0c567  hooks/target/u
 75ace3852b5f57082ad365f6f22dc2882f17f8db4d9d824e5291ae05b8e53489  hooks/target/usr/local/share/software/apt-repo-local.sources.in.tmpl
 2eb2d516ac822835ce3ce8aa3fc88dc89130744bf40c473e911475e40d494e6c  hooks/target/usr/local/share/software/ledger/ledgerlive.pem
 2c86ae134a05807df70c6ad899e7bc83c2caa8fc82492202cd6377259c6ea25b  hooks/target/usr/local/share/software/package-policies.json
-e5faa2663df43ce08d8e31269a508b78a65d05cfb883693273a97628a19dd9bd  hooks/target/usr/local/share/software/software-release-policy.json.tmpl
+9e2ee46f5ebc6462af0094592aa305eec5c3eee442eb86beef4b9a0f8a9ad9c8  hooks/target/usr/local/share/software/software-release-policy.json.tmpl
 7cec103d0be11b608f61850143101e56f0ba45383b61f44835300ff54ef93032  hooks/target/usr/local/share/software/tor-browser/developers.asc
 837890c39de1c52f297b44b50194869754fb4d1327112cdafd14bdc0c3db27fd  hooks/target/usr/local/share/software/tuta/tutao-pub.pem
 e61a12e86abde31c0c45de39f37a6657c62d529739786baab663f499b56618b8  hooks/target/usr/share/backgrounds/desktop/purple-curves-8k-tf-2560x1440.jpg
@@ -1781,7 +1781,7 @@ b132fef437818d888e2e699df188762b35e24ddf3ceb50f997b5c8fff991a7d9  hosts/profiles
 ccf8ee890e5b0783d4143a2ebd0b4e645f4f38f9e0999bb8320bda2e6f684b4e  hosts/profiles/f2fs-de-hp14.env
 739c00e0795f5f26c20d0b7e2371f509345ed4ef92a1a800175842ec1eb8d6cb  hosts/profiles/f2fs-de-x360-duo.env
 e131e86dc78682b053cff92ea8a1e6ed3f4ffea3a0c8dcc7a2b233ff02d3ebe4  hosts/profiles/f2fs-de-x360.env
-fbcc66c80f0c9fc8065d9a04f28d5cc969a5902998c0bfd7834d6937d02078c0  hosts/profiles/shared-de.env
+73f83bb7e5b3527e8b89a5c25b2833e3600dc496c80e6b2763fb8e6e6fa11629  hosts/profiles/shared-de.env
 bfd679f11f62d4836854ba41f451c75dace91ee0c9e47d30374013d1ead0398f  hosts/themes/README.md
 e21847c7905ee3c4ee6d262f3458df7bda309234069964cfb322432a64e733e4  hosts/themes/apps.env
 da0dbd26908303efbf7f30e362203b29fefabffda8802973373d992a26f1614e  hosts/themes/base.env
@@ -1918,7 +1918,7 @@ b9fc7dc3b374827d52b55b2cd886063d2b276dad9eb121a492fb3ea4d8a4e552  scripts/late/d
 a404f646ad6dc9da3394e4de3519754d88fdffbd0bf2e5374e8073cef91e1f50  scripts/late/devops/codex-release.sh
 7886daa889f6d447704d5cfaade94dd0938c047b8149e376a0451dad9a42866c  scripts/late/devops/gitbuild.sh
 0ce133ea5b3071844cd6544432d010de44ccb51bbe56b803bc85f19cfbd36e30  scripts/late/devops/main-orchestration.sh
-27c094e2d542dd584b079aba57a448c2ec0d7374e829b5c69797578ddcad688d  scripts/late/devops/policy-resolution.sh.tmpl
+68d2911ff173f3f45d1c2b7a3015c93d1b456b34d09e79b3a4a47156bf4ad76c  scripts/late/devops/policy-resolution.sh.tmpl
 64320354a16b0c4d1293ea28145a5bf3f1dd26e02f5f56bc6d58ef1167ec1657  scripts/late/devops/publication-layout.sh
 fdd2219ee202e337b582bb24a980eeca2afe8580f91dc45de3e3b920d724e8ad  scripts/late/devops/publication-services.sh
 1811534213e6408f9070fe34b1e39ca17ce5974381e2e7e2cfd24ef1efd5f2d8  scripts/late/devops/signing-key.sh
@@ -1946,7 +1946,7 @@ a68feb0d6ebf16e36e71adc3d51474d2a5d4b486229c20554981c404a5d9022e  scripts/late/n
 b058be07a957614fc19133275a4bf25eb0dcaed2cab4174b3676c9931240b401  scripts/late/podman.sh
 364a14ea9dd3a35b53d0ea9232a5b78b99d33412b26858db2475c4f680c13c3c  scripts/late/qemu.sh
 86c23c3faed26cee3e37964bba1fb9ada11b832718f48c6b449d623e39f15028  scripts/late/security.sh
-424e56f675439eb1f7feba49d334799ba7db42c8ec3333c4066a38fe7b0d43c5  scripts/late/software.sh.tmpl
+5967cc0ce0bc510a866a10ce68ce069c067b857c44caca85ebc7b7c376a83f5f  scripts/late/software.sh.tmpl
 f101b124fe56049a61822263fd64c4c74efbc181de8a2900b2e32748925adf64  scripts/late/ssh/clone.conf.tmpl
 faa9af215ec6cf661dec19aa3915e2e821c1f3993a184fdd582eb03ac207d340  scripts/late/ssh/ssh-install-askpass
 e58c438dad35c5cd83c998de8acea6cf3f5c86bba824ca77c850bc2d4e124abb  scripts/late/ssh/ssh-install.py

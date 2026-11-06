@@ -173,7 +173,7 @@ devops_validate_publishing_policy() {
   [ "$DEVOPS_APTLY_R2_BUCKET" = cf-aptly-r2-prod ] ||
     devops_fatal "DEVOPS_APTLY_R2_BUCKET must remain cf-aptly-r2-prod"
   case "$DEVOPS_APTLY_R2_PREFIX" in
-    /*|*//*|*..*|*[!ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789._/-]*)
+    /|*//*|*..*|*[!ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789._/-]*)
       devops_fatal "DEVOPS_APTLY_R2_PREFIX must be a normalized absolute path"
       ;;
   esac

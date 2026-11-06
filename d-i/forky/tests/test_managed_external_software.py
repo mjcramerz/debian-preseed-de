@@ -370,6 +370,15 @@ my $deb = APTRepoLocal::Servicing::Deb->new(
 );
 my $chatgpt = APTRepoLocal::Servicing::ChatGPT->new(
     state => bless({}, 'TestState'),
+    release_policy => {
+        generic_deb => {
+            chatgpt => {
+                url => 'https://fixture.invalid/chatgpt.deb',
+                minimum_bytes => 1,
+                maximum_bytes => 1,
+            },
+        },
+    },
 );
 my $spec = $chatgpt->spec();
 my $output = $deb->repack_without_dependencies(

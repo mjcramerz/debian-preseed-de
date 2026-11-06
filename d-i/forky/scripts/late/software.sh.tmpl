@@ -326,6 +326,7 @@ done
 for managed_service_url in \
   "$SOFTWARE_CHATGPT_URL" \
   "$SOFTWARE_DISCORD_MANIFEST_URL" \
+  "$SOFTWARE_QOREDB_DISCOVERY_URL" \
   "$SOFTWARE_OBSIDIAN_DISCOVERY_URL" \
   "$SOFTWARE_POSTMAN_URL" \
   "$SOFTWARE_SLEEK_DISCOVERY_URL" \
@@ -383,12 +384,17 @@ unset managed_generic_url managed_generic_maximum managed_service_url
 : "${SOFTWARE_QOREDB_URL:?SOFTWARE_QOREDB_URL must be set by every desktop host profile}"
 : "${SOFTWARE_QOREDB_SHA256:?SOFTWARE_QOREDB_SHA256 must be set by every desktop host profile}"
 : "${SOFTWARE_QOREDB_MINIMUM_BYTES:?SOFTWARE_QOREDB_MINIMUM_BYTES must be set by every desktop host profile}"
+: "${SOFTWARE_QOREDB_DISCOVERY_URL:?SOFTWARE_QOREDB_DISCOVERY_URL must be set by the shared host environment}"
 software_validate_release_version SOFTWARE_QOREDB_VERSION "$SOFTWARE_QOREDB_VERSION"
 software_validate_sha256 SOFTWARE_QOREDB_SHA256 "$SOFTWARE_QOREDB_SHA256"
 software_validate_bounded_bytes SOFTWARE_QOREDB_MINIMUM_BYTES "$SOFTWARE_QOREDB_MINIMUM_BYTES" "$SOFTWARE_GENERIC_DOWNLOAD_MAXIMUM_BYTES"
 case "$SOFTWARE_QOREDB_URL" in
   https://*/*) ;;
   *) software_fatal "SOFTWARE_QOREDB_URL does not match the configured release" ;;
+esac
+case "$SOFTWARE_QOREDB_DISCOVERY_URL" in
+  https://*/*) ;;
+  *) software_fatal "SOFTWARE_QOREDB_DISCOVERY_URL is not a supported HTTPS URL" ;;
 esac
 qoredb_deb="${work_dir}/QoreDB_${SOFTWARE_QOREDB_VERSION}_amd64.deb"
 
@@ -767,6 +773,18 @@ software_stage_external_servicing_runtime() {
   software_stage_seed_asset \
     "$(installer_repo_join_var DIR_HOOKS_TARGET usr/local/libexec/apt-repo-local-vendor)" \
     /usr/local/libexec/apt-repo-local-vendor 0755
+  chroot "$target_root" /usr/bin/grep -Fq \
+    'my $release_policy = $cli->_software_release_policy();' \
+    /usr/local/libexec/apt-repo-local-vendor ||
+    software_fatal "staged apt-repo-local-vendor lacks release-policy loading"
+  chroot "$target_root" /usr/bin/grep -Fq \
+    'release_policy => $release_policy,' \
+    /usr/local/libexec/apt-repo-local-vendor ||
+    software_fatal "staged apt-repo-local-vendor lacks ChatGPT release-policy wiring"
+  chroot "$target_root" /usr/bin/grep -Fq \
+    'release_policy => $vendor_policy,' \
+    /usr/local/libexec/apt-repo-local-vendor ||
+    software_fatal "staged apt-repo-local-vendor lacks vendor release-policy wiring"
   software_stage_seed_asset \
     "$(installer_repo_join_var DIR_HOOKS_TARGET usr/local/bin/apt-repo-init)" \
     /usr/local/bin/apt-repo-init 0755
@@ -786,6 +804,7 @@ software_stage_external_servicing_runtime() {
     SOFTWARE_CHATGPT_URL "$SOFTWARE_CHATGPT_URL" \
     SOFTWARE_CHATGPT_MAXIMUM_BYTES "$SOFTWARE_CHATGPT_MAXIMUM_BYTES" \
     SOFTWARE_DISCORD_MANIFEST_URL "$SOFTWARE_DISCORD_MANIFEST_URL" \
+    SOFTWARE_QOREDB_DISCOVERY_URL "$SOFTWARE_QOREDB_DISCOVERY_URL" \
     SOFTWARE_DISCORD_HOST_MINIMUM_BYTES "$SOFTWARE_DISCORD_HOST_MINIMUM_BYTES" \
     SOFTWARE_DISCORD_HOST_MAXIMUM_BYTES "$SOFTWARE_DISCORD_HOST_MAXIMUM_BYTES" \
     SOFTWARE_DISCORD_MODULE_MINIMUM_BYTES "$SOFTWARE_DISCORD_MODULE_MINIMUM_BYTES" \
@@ -1994,8 +2013,8 @@ software_install_ledger() {
     "Ledger release metadata" \
     "$ledger_metadata_url" \
     "$ledger_metadata" \
-    "$SOFTWARE_LEDGER_METADATA_SIGNATURE_MINIMUM_BYTES" \
-    "$SOFTWARE_LEDGER_METADATA_SIGNATURE_MAXIMUM_BYTES" \
+    "$SOFTWARE_LEDGER_METADATA_MINIMUM_BYTES" \
+    "$SOFTWARE_LEDGER_METADATA_MAXIMUM_BYTES" \
     metadata \
     skip
   software_parse_ledger_metadata
@@ -2004,8 +2023,8 @@ software_install_ledger() {
     "Ledger signed SHA-512 manifest" \
     "$ledger_checksums_url" \
     "$ledger_checksums" \
-    "$SOFTWARE_LEDGER_METADATA_SIGNATURE_MINIMUM_BYTES" \
-    "$SOFTWARE_LEDGER_METADATA_SIGNATURE_MAXIMUM_BYTES" \
+    "$SOFTWARE_LEDGER_CHECKSUMS_MINIMUM_BYTES" \
+    "$SOFTWARE_LEDGER_CHECKSUMS_MAXIMUM_BYTES" \
     metadata \
     skip
   software_download \
@@ -2014,7 +2033,7 @@ software_install_ledger() {
     "$ledger_checksums_signature" \
     "$SOFTWARE_LEDGER_METADATA_SIGNATURE_MINIMUM_BYTES" \
     "$SOFTWARE_LEDGER_METADATA_SIGNATURE_MAXIMUM_BYTES" \
-    artifact \
+    signature \
     skip
   software_download \
     "Ledger Live AppImage" \
@@ -2069,6 +2088,8 @@ work_dir=$1
 appimage=$2
 install_dir=$3
 version=$4
+maximum_members=$5
+maximum_extracted_bytes=$6
 new_dir=/opt/.ledger-live.new
 backup_dir=/opt/.ledger-live.previous
 
@@ -2102,8 +2123,8 @@ extracted_kib=$(du -sk "$extracted" | awk "{print \$1}")
 case "$extracted_file_count:$extracted_kib" in
   *[!0-9:]*|:|*:) exit 1 ;;
 esac
-[ "$extracted_file_count" -le "$SOFTWARE_LEDGER_APPIMAGE_MAXIMUM_MEMBERS" ]
-[ "$extracted_kib" -le "$((SOFTWARE_LEDGER_APPIMAGE_MAXIMUM_EXTRACTED_BYTES / 1024))" ]
+[ "$extracted_file_count" -le "$maximum_members" ]
+[ "$extracted_kib" -le "$((maximum_extracted_bytes / 1024))" ]
 
 cp -a "$extracted" "$new_dir"
 chown -R root:root "$new_dir"
@@ -2123,14 +2144,45 @@ chmod 0755 "$install_dir"
 [ -u "$install_dir/chrome-sandbox" ] && [ -x "$install_dir/AppRun" ]
 rm -rf "$backup_dir"
 trap - EXIT HUP INT TERM
-' sh "$work_dir" "$ledger_appimage" "$ledger_install_dir" "$ledger_version"
+' sh "$work_dir" "$ledger_appimage" "$ledger_install_dir" "$ledger_version" \
+    "$SOFTWARE_LEDGER_APPIMAGE_MAXIMUM_MEMBERS" \
+    "$SOFTWARE_LEDGER_APPIMAGE_MAXIMUM_EXTRACTED_BYTES"
 
-  ledger_icon_source="${ledger_install_dir}/usr/share/icons/hicolor/512x512/apps/ledger-live-desktop.png"
-  [ -f "${target_root}${ledger_icon_source}" ] &&
-    [ ! -L "${target_root}${ledger_icon_source}" ] &&
-    [ -r "${target_root}${ledger_icon_source}" ] ||
-    software_fatal "verified Ledger Live AppImage is missing its managed icon"
-  install -D -m 0644 "${target_root}${ledger_icon_source}" "${target_root}${ledger_icon_file}"
+  ledger_icon_source=$(
+    if [ -e "${target_root}${ledger_install_dir}/.DirIcon" ]; then
+      readlink -f "${target_root}${ledger_install_dir}/.DirIcon"
+    fi
+  )
+  if [ -z "$ledger_icon_source" ]; then
+    ledger_icon_source=$(
+      find "${target_root}${ledger_install_dir}/usr/share/icons/hicolor" \
+        -xdev -type f -path '*/apps/*.png' -printf '%s %p\n' 2>/dev/null |
+        sort -nr |
+        awk 'NR == 1 { sub(/^[0-9]+ /, ""); print; exit }'
+    )
+  fi
+  if [ -z "$ledger_icon_source" ]; then
+    ledger_icon_source=$(
+      find "${target_root}${ledger_install_dir}" \
+        -xdev -type f \( -iname '*ledger*.png' -o -iname '*icon*.png' \) \
+        -printf '%s %p\n' 2>/dev/null |
+        sort -nr |
+        awk 'NR == 1 { sub(/^[0-9]+ /, ""); print; exit }'
+    )
+  fi
+  case "$ledger_icon_source" in
+    "${target_root}${ledger_install_dir}"/*) ;;
+    *) software_fatal "verified Ledger Live AppImage is missing a PNG icon inside its managed tree" ;;
+  esac
+  [ -f "$ledger_icon_source" ] &&
+    [ ! -L "$ledger_icon_source" ] &&
+    [ -r "$ledger_icon_source" ] ||
+    software_fatal "verified Ledger Live AppImage icon is not a readable regular file"
+  ledger_icon_target_path=${ledger_icon_source#"$target_root"}
+  ledger_icon_type=$(chroot "$target_root" /usr/bin/file -b --mime-type "$ledger_icon_target_path" 2>/dev/null || true)
+  [ "$ledger_icon_type" = image/png ] ||
+    software_fatal "verified Ledger Live AppImage icon is not a PNG: ${ledger_icon_type:-unset}"
+  install -D -m 0644 "$ledger_icon_source" "${target_root}${ledger_icon_file}"
 
   software_render_seed_asset \
     "$(installer_repo_join_var DIR_HOOKS_TARGET usr/local/share/applications/ledger-live.desktop)" \

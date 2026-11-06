@@ -81,7 +81,7 @@ sub _software_release_policy {
 
     my %service_urls;
     for my $name (qw(
-        chatgpt discord_manifest obsidian_discovery postman sleek_discovery
+        chatgpt discord_manifest qoredb_discovery obsidian_discovery postman sleek_discovery
         tomat_discovery tuta_appimage tuta_signature
     )) {
         my $url = $policy->{service_urls}{$name};
