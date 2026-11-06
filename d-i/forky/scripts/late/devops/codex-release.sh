@@ -260,7 +260,7 @@ case "$repository_url" in
   *) codex_fatal "Codex repository URL has an unsupported scheme" ;;
 esac
 case "$repository_branch" in
-  ''|*/*/*|*[!A-Za-z0-9._/-]*) codex_fatal "Codex repository branch is malformed" ;;
+  '"'"''"'"'|*/*/*|*[!A-Za-z0-9._/-]*) codex_fatal "Codex repository branch is malformed" ;;
 esac
 [ "$agents_path" = "$user_root/agents" ] ||
   codex_fatal "Codex agents path is not approved: $agents_path"
