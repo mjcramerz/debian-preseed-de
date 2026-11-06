@@ -4,16 +4,16 @@
 # Keep managed single-line quoted values. The daemon checks channel policy
 # immediately before dispatch; edits to a destination or credential stop that
 # channel until restart. Missed reminder slots are never replayed as a backlog.
-LABWC_PLANS_ENABLED='true'
+LABWC_PLANS_ENABLED='__INSTALLER_LABWC_PLANS_ENABLED__'
 # Delivery is authorized only by a local calendar UID opt-in from the clock
 # event/task form. Sleek files and the former plan queue are never read.
-LABWC_PLANS_TELEGRAM_ENABLED='true'
-LABWC_PLANS_TELEGRAM_API_BASE='https://api.telegram.org'
+LABWC_PLANS_TELEGRAM_ENABLED='__INSTALLER_LABWC_PLANS_TELEGRAM_ENABLED__'
+LABWC_PLANS_TELEGRAM_API_BASE='__INSTALLER_LABWC_PLANS_TELEGRAM_API_BASE__'
 LABWC_PLANS_TELEGRAM_API_KEY='__INSTALLER_TELEGRAM_API_KEY__'
 LABWC_PLANS_TELEGRAM_CHAT_ID='__INSTALLER_TELEGRAM_CHAT_ID__'
-LABWC_PLANS_NTFY_ENABLED='false'
-LABWC_PLANS_NTFY_BASE_URL='https://ntfy.sh'
+LABWC_PLANS_NTFY_ENABLED='__INSTALLER_LABWC_PLANS_NTFY_ENABLED__'
+LABWC_PLANS_NTFY_BASE_URL='__INSTALLER_LABWC_PLANS_NTFY_BASE_URL__'
 LABWC_PLANS_NTFY_TOPIC=''
 LABWC_PLANS_NTFY_ACCESS_TOKEN=''
 # Enable only after verifying that unauthorized readers cannot subscribe.
-LABWC_PLANS_NTFY_READER_ACCESS_CONFIRMED='false'
+LABWC_PLANS_NTFY_READER_ACCESS_CONFIRMED='__INSTALLER_LABWC_PLANS_NTFY_READER_ACCESS_CONFIRMED__'

@@ -149,26 +149,34 @@ verify_managed_install() {
   printf '%s\n' "$verify_actual_version"
 }
 
-[ "$#" -eq 4 ] ||
-  fatal 'usage: codex-standalone-install INSTALLER_URL MAXIMUM_BYTES CODEX_HOME PACKAGES_ROOT'
+[ "$#" -eq 5 ] ||
+  fatal 'usage: codex-standalone-install INSTALLER_URL INSTALLER_SHA256 MAXIMUM_BYTES CODEX_HOME PACKAGES_ROOT'
 
 installer_url=$1
-# Official OpenAI installer source, pinned independently of its latest-channel
-# binary selection. Do not depend on the ChatGPT landing site's script route.
-installer_sha256=95d14ccaba915e52a3f0cc590638ca5ac510086ff6a23dc9ac9f77e957403a93
-maximum_bytes=$2
-expected_codex_home=$3
-packages_root=$4
+installer_sha256=$2
+maximum_bytes=$3
+expected_codex_home=$4
+packages_root=$5
 installer_uid=$(/usr/bin/id -u) || fatal 'cannot resolve the installer account identifier'
 
 [ "$installer_uid" -ne 0 ] || fatal 'the standalone installer must run as the desktop account'
-[ "$installer_url" = 'https://raw.githubusercontent.com/openai/codex/89461ea6833832b0551ce24ee32205824d5c108d/scripts/install/install.sh' ] ||
-  fatal "installer URL is not approved: $installer_url"
+case "$installer_url" in
+  https://*/*) ;;
+  *) fatal "installer URL must be HTTPS and include a filename: $installer_url" ;;
+esac
+installer_filename=${installer_url##*/}
+[ -n "$installer_filename" ] || fatal 'installer URL has no filename'
+case "$installer_filename" in
+  */*) fatal 'installer URL filename must not contain a slash' ;;
+esac
+case "$installer_sha256" in
+  ''|*[!0123456789abcdef]*) fatal 'installer SHA-256 is malformed' ;;
+esac
+[ "${#installer_sha256}" -eq 64 ] || fatal 'installer SHA-256 must contain 64 lowercase hexadecimal characters'
 case "$maximum_bytes" in
   ''|*[!0123456789]*) fatal "installer byte limit is malformed: $maximum_bytes" ;;
 esac
 [ "$maximum_bytes" -gt 0 ] || fatal 'installer byte limit must be greater than zero'
-[ "$maximum_bytes" -le 1048576 ] || fatal 'installer byte limit exceeds 1 MiB'
 validate_absolute_path 'HOME' "${HOME:-}"
 validate_absolute_path 'XDG_RUNTIME_DIR' "${XDG_RUNTIME_DIR:-}"
 validate_absolute_path 'expected CODEX_HOME' "$expected_codex_home"
@@ -178,10 +186,12 @@ validate_absolute_path 'managed package root' "$packages_root"
 require_private_directory 'installer runtime directory' "$XDG_RUNTIME_DIR"
 installer_runtime=$XDG_RUNTIME_DIR
 
-codex_root=${expected_codex_home%/usr/home}
-[ "$codex_root" != "$expected_codex_home" ] &&
-  [ "$packages_root" = "$codex_root/packages" ] ||
-  fatal 'CODEX_HOME and package root do not share the approved layout'
+codex_root=${packages_root%/*}
+[ "$codex_root" != "$packages_root" ] || fatal 'managed package root must have a parent Codex root'
+case "$expected_codex_home" in
+  "$codex_root"/*) ;;
+  *) fatal 'CODEX_HOME and package root do not share the configured Codex root' ;;
+esac
 
 profile_path=${HOME}/.profile.d/71-devops-de.sh
 [ -f "$profile_path" ] && [ ! -L "$profile_path" ] ||
@@ -206,7 +216,8 @@ CODEX_HOME=$expected_codex_home
 export CODEX_HOME
 require_private_directory 'installer runtime directory' "$installer_runtime"
 
-source_packages=${CODEX_HOME}/packages
+packages_name=${packages_root##*/}
+source_packages=${CODEX_HOME}/${packages_name}
 [ -L "$source_packages" ] &&
   [ "$(/usr/bin/readlink -- "$source_packages")" = "$packages_root" ] ||
   fatal "CODEX_HOME package link does not target the managed package root: $source_packages"
@@ -251,7 +262,7 @@ cleanup() {
   if [ "$cleanup_status" -ne 0 ] && [ "$publication_committed" -eq 0 ] &&
      [ "$packages_root_published" -eq 1 ]; then
     case "$packages_root" in
-      "$codex_root"/packages)
+      "$packages_root")
         if [ -d "$packages_root" ] && [ ! -L "$packages_root" ]; then
           /bin/rm -rf -- "$packages_root" || cleanup_status=1
         else
@@ -290,9 +301,8 @@ installer_staging=$(/usr/bin/mktemp -d "${codex_root}/.standalone-install.XXXXXX
   fatal 'cannot allocate the standalone package staging directory'
 /bin/chmod 0600 -- "$installer_script"
 /bin/chmod 0700 -- "$installer_home"
-# /data/codex is setgid. GNU chmod preserves setgid on directories unless it
-# is cleared explicitly, even when applying numeric mode 0700. Remove inherited
-# special bits before enforcing the private staging-directory mode.
+# The managed Codex root is setgid. GNU chmod preserves setgid on directories
+# unless it is cleared explicitly, even when applying numeric mode 0700.
 /bin/chmod a-s -- "$installer_staging"
 /bin/chmod 0700 -- "$installer_staging"
 require_private_directory 'standalone package staging directory' "$installer_staging"

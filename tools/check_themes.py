@@ -280,16 +280,22 @@ def check(seed: Path = SEED) -> dict[str, int]:
                 path = template
             if not path.is_file() or path.is_symlink():
                 raise ValueError(f'{name}: selected payload icon is missing or unsafe: {value}')
-    profiles = sorted((seed / 'hosts/profiles').glob('*.env'))
+    profile_dir = seed / 'hosts/profiles'
+    shared = profile_dir / 'shared-de.env'
+    if not shared.is_file():
+        raise ValueError('mandatory shared-de.env is missing')
+    shared_assigned = Counter(ASSIGNMENT.findall(shared.read_text(encoding='utf-8')))
+    profiles = sorted(path for path in profile_dir.glob('*.env') if path.name != 'shared-de.env')
     for profile in profiles:
         text = profile.read_text(encoding='utf-8')
         assigned = Counter(ASSIGNMENT.findall(text))
         overlap = assigned.keys() & values.keys()
         if overlap:
             raise ValueError(f'{profile.name}: theme values belong in hosts/themes: {sorted(overlap)}')
-        if any(assigned[name] != 1 for name in SIZES):
+        effective = shared_assigned + assigned
+        if any(effective[name] != 1 for name in SIZES):
             raise ValueError(f'{profile.name}: define all {len(SIZES)} canonical Fuzzel dimensions exactly once')
-        legacy = [name for name in assigned
+        legacy = [name for name in effective
                   if (name.startswith('FUZZEL_') and name not in SIZES)
                   or (name.startswith('LABWC_FUZZEL_') and
                       any(part in name for part in ('WIDTH', 'LINES', 'FONT_SIZE')))]

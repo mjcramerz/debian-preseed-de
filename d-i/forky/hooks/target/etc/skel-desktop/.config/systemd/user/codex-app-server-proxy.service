@@ -10,7 +10,7 @@ StartLimitBurst=5
 
 [Service]
 Type=notify
-ExecStart=/usr/lib/systemd/systemd-socket-proxyd --exit-idle-time=10min /data/codex/sockets/app-server-backend.sock
+ExecStart=/usr/lib/systemd/systemd-socket-proxyd --exit-idle-time=10min __INSTALLER_DEVOPS_CODEX_APP_SERVER_BACKEND_SOCKET__
 Restart=on-failure
 RestartSec=2s
 TimeoutStartSec=90s

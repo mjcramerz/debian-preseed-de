@@ -12,7 +12,16 @@ CONTEXT_ENV="${RUNTIME_DIR}/state/context.env"
 TARGET=${INSTALLER_TARGET_DIR:-/target}
 SOURCES_DIR="${TARGET}/etc/apt/sources.list.d"
 DEBIAN_KEYRING=/usr/share/keyrings/debian-archive-keyring.gpg
-CUDA_LEGACY_REPO_URL=https://developer.download.nvidia.com/compute/cuda/repos/debian12/x86_64
+ENV_DIR=${INSTALLER_ENV_DIR:-/tmp/install-env}
+HOST_ENV="${ENV_DIR}/host.env"
+if [ -r "$HOST_ENV" ]; then
+  # shellcheck disable=SC1090
+  . "$HOST_ENV"
+else
+  printf '%s\n' "fatal: missing host environment: ${HOST_ENV}" >&2
+  exit 1
+fi
+CUDA_LEGACY_REPO_URL=${CUDA_LEGACY_REPOSITORY_URL%/}
 CUDA_LEGACY_REPO_MATCH=${CUDA_LEGACY_REPO_URL#https://}
 CUDA_LEGACY_TARGET_SOURCE_PREFIX="${SOURCES_DIR}/cuda-legacy-temp"
 CUDA_LEGACY_TARGET_KEYRING="${TARGET}/etc/apt/keyrings/cuda-legacy-archive-key.asc"

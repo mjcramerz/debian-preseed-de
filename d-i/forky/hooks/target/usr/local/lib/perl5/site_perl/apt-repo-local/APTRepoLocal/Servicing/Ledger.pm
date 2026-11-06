@@ -22,8 +22,7 @@ use APTRepoLocal::Servicing::Process;
 has http  => (is => 'ro', required => 1);
 has event => (is => 'ro', required => 1);
 has state => (is => 'ro', required => 1);
-
-use constant KEY_FINGERPRINT => '0381bccfa5505e834f9fda30eeba257055782f30c495ba0604a0cd37b548c6fc';
+has release_policy => (is => 'ro', required => 1);
 
 sub _capture_bytes {
     my ($self, @command) = @_;
@@ -59,6 +58,7 @@ sub _is_elf {
 
 sub _parse_metadata {
     my ($self, $path) = @_;
+    my $policy = $self->release_policy();
     my $raw = APTRepoLocal::Servicing::Atomic->read_limited($path, 65_536);
     my %fields;
     for my $field (qw(version path sha512 size)) {
@@ -75,7 +75,9 @@ sub _parse_metadata {
         or die "Ledger release filename is invalid\n";
     $fields{sha512} =~ /\A[A-Za-z0-9+\/]{86}==\z/
         or die "Ledger release SHA-512 metadata is invalid\n";
-    $fields{size} =~ /\A[0-9]+\z/ && $fields{size} >= 104_857_600 && $fields{size} <= 536_870_912
+    $fields{size} =~ /\A[0-9]+\z/
+        && $fields{size} >= $policy->{metadata_minimum_bytes}
+        && $fields{size} <= $policy->{metadata_maximum_bytes}
         or die "Ledger release size is outside approved bounds\n";
     return \%fields;
 }
@@ -96,7 +98,7 @@ sub _assert_key {
     system('/usr/bin/openssl', 'pkey', '-pubin', '-in', $key, '-noout') == 0
         or die "Ledger public key is invalid\n";
     my $der = $self->_capture_bytes('/usr/bin/openssl', 'pkey', '-pubin', '-in', $key, '-outform', 'DER');
-    defined $der && sha256_hex($der) eq KEY_FINGERPRINT
+    defined $der && sha256_hex($der) eq $self->release_policy()->{public_key_sha256}
         or die "Ledger public key fingerprint does not match its pinned key\n";
 }
 
@@ -111,7 +113,8 @@ sub _tree_bounds {
                 $count++;
                 $unsafe = 1 if -l $_;
                 $bytes += -s _ if -f _;
-                $unsafe = 1 if $count > 20_000 || $bytes > 1_073_741_824;
+                $unsafe = 1 if $count > $self->release_policy()->{appimage_maximum_members}
+                    || $bytes > $self->release_policy()->{appimage_maximum_extracted_bytes};
             },
         },
         $root,
@@ -214,6 +217,7 @@ sub _rollback {
 
 sub fetch {
     my ($self, $work, $for_repository) = @_;
+    my $policy = $self->release_policy();
     my $install = '/opt/ledger-live';
     return (2, 'missing') if !$for_repository && (!-d $install || -l $install || !-x "$install/AppRun"
         || !-x "$install/ledger-live-desktop" || !-u "$install/chrome-sandbox");
@@ -227,38 +231,39 @@ sub fetch {
         $self->_assert_key($key);
         $self->http()->download(
             label => 'Ledger release metadata',
-            url => 'https://download.live.ledger.com/latest-linux.yml',
+            url => $policy->{metadata_url},
             destination => $metadata,
-            minimum => 128,
-            maximum => 65_536,
+            minimum => $policy->{metadata_minimum_bytes},
+            maximum => $policy->{metadata_maximum_bytes},
             content_policy => 'metadata',
         );
         $release = $self->_parse_metadata($metadata);
-        my $base = "https://resources.live.ledger.app/public_resources/signatures/ledger-live-desktop-$release->{version}.sha512sum";
+        my $base = $policy->{checksums_base_url}
+            . "$release->{version}.sha512sum";
         $self->http()->download(
             label => 'Ledger checksum manifest',
             url => $base,
             destination => $manifest,
-            minimum => 128,
-            maximum => 65_536,
+            minimum => $policy->{checksums_minimum_bytes},
+            maximum => $policy->{checksums_maximum_bytes},
             content_policy => 'metadata',
         );
         $self->http()->download(
             label => 'Ledger checksum signature',
             url => "$base.sig",
             destination => $signature,
-            minimum => 64,
-            maximum => 4_096,
+            minimum => $policy->{signature_minimum_bytes},
+            maximum => $policy->{signature_maximum_bytes},
             content_policy => 'artifact',
         );
         system('/usr/bin/openssl', 'dgst', '-sha256', '-verify', $key, '-signature', $signature, $manifest) == 0
             or die "Ledger checksum signature verification failed\n";
         $self->http()->download(
             label => 'Ledger Live AppImage',
-            url => 'https://download.live.ledger.com/latest/linux',
+            url => $policy->{requested_latest_url},
             destination => $image,
-            minimum => 1_048_576,
-            maximum => 536_870_912,
+            minimum => $policy->{appimage_minimum_bytes},
+            maximum => $policy->{appimage_maximum_bytes},
             content_policy => 'artifact',
         );
         1;

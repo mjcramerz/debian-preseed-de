@@ -20,20 +20,24 @@ desktop_digital_assets_validate_sha256() {
 
 desktop_digital_assets_validate_policy() {
   : "${DIGITAL_ASSETS_PDFCPU_URL:?DIGITAL_ASSETS_PDFCPU_URL must be set}"
+  : "${DIGITAL_ASSETS_PDFCPU_VERSION:?DIGITAL_ASSETS_PDFCPU_VERSION must be set}"
   : "${DIGITAL_ASSETS_PDFCPU_SHA256:?DIGITAL_ASSETS_PDFCPU_SHA256 must be set}"
+  : "${DIGITAL_ASSETS_PDFCPU_MINIMUM_BYTES:?DIGITAL_ASSETS_PDFCPU_MINIMUM_BYTES must be set}"
+  : "${DIGITAL_ASSETS_PDFCPU_MAXIMUM_BYTES:?DIGITAL_ASSETS_PDFCPU_MAXIMUM_BYTES must be set}"
+  : "${DIGITAL_ASSETS_PDFCPU_MAXIMUM_EXTRACTED_BYTES:?DIGITAL_ASSETS_PDFCPU_MAXIMUM_EXTRACTED_BYTES must be set}"
+  : "${DIGITAL_ASSETS_PDFCPU_MAXIMUM_MEMBERS:?DIGITAL_ASSETS_PDFCPU_MAXIMUM_MEMBERS must be set}"
   : "${DIGITAL_ASSETS_TYPST_URL:?DIGITAL_ASSETS_TYPST_URL must be set}"
+  : "${DIGITAL_ASSETS_TYPST_VERSION:?DIGITAL_ASSETS_TYPST_VERSION must be set}"
   : "${DIGITAL_ASSETS_TYPST_SHA256:?DIGITAL_ASSETS_TYPST_SHA256 must be set}"
+  : "${DIGITAL_ASSETS_TYPST_MINIMUM_BYTES:?DIGITAL_ASSETS_TYPST_MINIMUM_BYTES must be set}"
+  : "${DIGITAL_ASSETS_TYPST_MAXIMUM_BYTES:?DIGITAL_ASSETS_TYPST_MAXIMUM_BYTES must be set}"
+  : "${DIGITAL_ASSETS_TYPST_MAXIMUM_EXTRACTED_BYTES:?DIGITAL_ASSETS_TYPST_MAXIMUM_EXTRACTED_BYTES must be set}"
+  : "${DIGITAL_ASSETS_TYPST_MAXIMUM_MEMBERS:?DIGITAL_ASSETS_TYPST_MAXIMUM_MEMBERS must be set}"
   : "${ACCOUNT_USERNAME:?ACCOUNT_USERNAME must be set}"
   : "${ACCOUNT_HOME:?ACCOUNT_HOME must be set}"
 
-  [ "$DIGITAL_ASSETS_PDFCPU_URL" = "https://github.com/pdfcpu/pdfcpu/releases/download/v0.16.1/pdfcpu_0.16.1_Linux_x86_64.tar.xz" ] ||
-    desktop_digital_assets_fail "pdfcpu URL must remain pinned to the approved 0.16.1 Linux x86-64 release"
-  [ "$DIGITAL_ASSETS_PDFCPU_SHA256" = "757e57036e1da56b789d0243ba72b09be4f26b3ec88e781170896ac36ae04d51" ] ||
-    desktop_digital_assets_fail "pdfcpu SHA-256 must match the approved release digest"
-  [ "$DIGITAL_ASSETS_TYPST_URL" = "https://github.com/typst/typst/releases/download/v0.15.1/typst-x86_64-unknown-linux-musl.tar.xz" ] ||
-    desktop_digital_assets_fail "Typst URL must remain pinned to the approved 0.15.1 Linux x86-64 release"
-  [ "$DIGITAL_ASSETS_TYPST_SHA256" = "a6d077d0a95eed5a2eba715b2dae06be954f624ccbf85758a03f389ded33118c" ] ||
-    desktop_digital_assets_fail "Typst SHA-256 must match the approved release digest"
+  case "$DIGITAL_ASSETS_PDFCPU_URL" in https://*/*.tar.xz) ;; *) desktop_digital_assets_fail "pdfcpu URL must be an HTTPS archive" ;; esac
+  case "$DIGITAL_ASSETS_TYPST_URL" in https://*/*.tar.xz) ;; *) desktop_digital_assets_fail "Typst URL must be an HTTPS archive" ;; esac
 
   desktop_digital_assets_validate_sha256 \
     DIGITAL_ASSETS_PDFCPU_SHA256 \
@@ -520,23 +524,23 @@ desktop_install_digital_assets() {
 
   desktop_digital_assets_install_release_tool \
     pdfcpu \
-    0.16.1 \
+    "$DIGITAL_ASSETS_PDFCPU_VERSION" \
     "$DIGITAL_ASSETS_PDFCPU_URL" \
     "$DIGITAL_ASSETS_PDFCPU_SHA256" \
-    1000000 \
-    67108864 \
-    268435456 \
-    128 \
+    "$DIGITAL_ASSETS_PDFCPU_MINIMUM_BYTES" \
+    "$DIGITAL_ASSETS_PDFCPU_MAXIMUM_BYTES" \
+    "$DIGITAL_ASSETS_PDFCPU_MAXIMUM_EXTRACTED_BYTES" \
+    "$DIGITAL_ASSETS_PDFCPU_MAXIMUM_MEMBERS" \
     version
   desktop_digital_assets_install_release_tool \
     typst \
-    0.15.1 \
+    "$DIGITAL_ASSETS_TYPST_VERSION" \
     "$DIGITAL_ASSETS_TYPST_URL" \
     "$DIGITAL_ASSETS_TYPST_SHA256" \
-    1000000 \
-    134217728 \
-    536870912 \
-    256 \
+    "$DIGITAL_ASSETS_TYPST_MINIMUM_BYTES" \
+    "$DIGITAL_ASSETS_TYPST_MAXIMUM_BYTES" \
+    "$DIGITAL_ASSETS_TYPST_MAXIMUM_EXTRACTED_BYTES" \
+    "$DIGITAL_ASSETS_TYPST_MAXIMUM_MEMBERS" \
     --version
   desktop_digital_assets_install_python_tools
 }

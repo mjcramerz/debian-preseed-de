@@ -1,8 +1,13 @@
 #!/bin/sh
+# shellcheck disable=SC2154
 # Packaged Debian builders and managed gitbuild entrypoints only.
 
 devops_stage_gitbuild() (
   set -eu
+  case "$DEVOPS_GITBUILD_BOOTSTRAP_MIRROR_URL" in
+    https://*/*) ;;
+    *) devops_fatal "DEVOPS_GITBUILD_BOOTSTRAP_MIRROR_URL must be an HTTPS Debian mirror URL" ;;
+  esac
   for directory in \
     /usr/local/bin \
     /usr/local/lib \
@@ -31,11 +36,26 @@ devops_stage_gitbuild() (
     devops_stage_target_asset "$(installer_repo_join_var DIR_HOOKS_TARGET "$path")" "/$path" 0644 gitbuild-shared-module
     chown root:root "${target_root}/$path"
   done
-  for module in __init__ cli core import_local publish safe_rename worker; do
+  for module in __init__ cli core import_local publish safe_rename; do
     path="usr/local/lib/python3.14/dist-packages/gitbuild/$module.py"
     devops_stage_target_asset "$(installer_repo_join_var DIR_HOOKS_TARGET "$path")" "/$path" 0644 gitbuild-module
     chown root:root "${target_root}/$path"
   done
+  worker_path=usr/local/lib/python3.14/dist-packages/gitbuild/worker.py
+  worker_source_path=${worker_path}.tmpl
+  worker_source=$(installer_repo_join_var DIR_HOOKS_TARGET "$worker_source_path")
+  worker_tmp="${tmp_env_dir}/gitbuild-worker.py.$$"
+  worker_rendered="${tmp_env_dir}/gitbuild-worker.rendered.py.$$"
+  bootstrap_fetch_seed_file "$seed_base" "$worker_source" "$worker_tmp" 0600 \
+    "Gitbuild worker template ${worker_source}"
+  installer_apply_scalar_placeholders \
+    "$worker_tmp" "$worker_rendered" \
+    DEVOPS_GITBUILD_BOOTSTRAP_MIRROR_URL "$DEVOPS_GITBUILD_BOOTSTRAP_MIRROR_URL"
+  installer_assert_no_unresolved_installer_placeholders "$worker_rendered" \
+    "Gitbuild worker template ${worker_source}"
+  install -m 0644 "$worker_rendered" "${target_root}/$worker_path"
+  chown root:root "${target_root}/$worker_path"
+  rm -f -- "$worker_tmp" "$worker_rendered"
   for path in usr/local/share/gitbuild/sbuild.conf usr/share/polkit-1/actions/org.labwc.gitbuild-import.policy; do
     devops_stage_target_asset "$(installer_repo_join_var DIR_HOOKS_TARGET "$path")" "/$path" 0644 gitbuild-policy
     chown root:root "${target_root}/$path"

@@ -25,6 +25,10 @@ desktop_install_fonts() (
     "$(installer_repo_join_var DIR_SCRIPTS_DESKTOP fonts-install.py)" "$helper" 0700
   run_in_target "install pinned desktop fonts and refresh user font caches" \
     /usr/bin/env -i HOME=/root LC_ALL=C PATH=/usr/sbin:/usr/bin:/sbin:/bin \
+    LABWC_FONTS_MAXIMUM_ARCHIVE_BYTES="$LABWC_FONTS_MAXIMUM_ARCHIVE_BYTES" \
+    LABWC_FONTS_MAXIMUM_EXPANDED_BYTES="$LABWC_FONTS_MAXIMUM_EXPANDED_BYTES" \
+    LABWC_FONTS_MAXIMUM_MEMBER_BYTES="$LABWC_FONTS_MAXIMUM_MEMBER_BYTES" \
+    LABWC_FONTS_MAXIMUM_MEMBERS="$LABWC_FONTS_MAXIMUM_MEMBERS" \
     /usr/bin/timeout --signal=TERM --kill-after=5s 1800s \
     /usr/bin/python3 -I "$helper" \
     --account "$ACCOUNT_USERNAME" --home "$ACCOUNT_HOME" \

@@ -12,6 +12,23 @@ use APTRepoLocal::Servicing::Atomic;
 
 has http => (is => 'ro', required => 1);
 has deb  => (is => 'ro', required => 1);
+has release_policy => (is => 'ro');
+
+sub _limit {
+    my ($self, $name) = @_;
+    my $value = $self->release_policy()->{release_deb_limits}{tomat}{$name};
+    defined $value && !ref $value && $value =~ /\A[1-9][0-9]*\z/
+        or die "Tomat release policy limit is unavailable: $name\n";
+    return 0 + $value;
+}
+
+sub _metadata_limit {
+    my ($self, $name) = @_;
+    my $value = $self->release_policy()->{metadata_limits}{$name};
+    defined $value && !ref $value && $value =~ /\A[1-9][0-9]*\z/
+        or die "Tomat metadata policy limit is unavailable: $name\n";
+    return 0 + $value;
+}
 
 sub _sha256 {
     my ($self, $path) = @_;
@@ -35,14 +52,13 @@ sub _pinned_release {
     my ($version) = $tag =~ /\Av([0-9]+\.[0-9]+\.[0-9]+)\z/;
     defined $version && length($version) <= 32
         or die "Tomat pinned release tag is invalid\n";
-    my ($package_version) = $url =~ m{\Ahttps://github\.com/jolars/tomat/releases/download/\Q$tag\E/tomat_(\Q$version\E-[1-9][0-9]{0,8})_amd64\.deb\z};
-    defined $package_version
-        or die "Tomat pinned URL does not match its tag and amd64 Debian asset\n";
+    my ($asset_name) = $url =~ m{\Ahttps://[^\s/]+(?:/[^\s/]+)*/releases/download/\Q$tag\E/([^/\s]+\.deb)\z};
+    defined $asset_name or die "Tomat pinned URL does not match its release tag and Debian asset\n";
     $sha256 =~ /\A[0-9a-f]{64}\z/
         or die "Tomat pinned SHA-256 is invalid\n";
     return {
         version => $version,
-        package_version => $package_version,
+        package_version => undef,
         url => $url,
         sha256 => $sha256,
     };
@@ -50,7 +66,7 @@ sub _pinned_release {
 
 sub _release {
     my ($self, $path) = @_;
-    my $raw = APTRepoLocal::Servicing::Atomic->read_limited($path, 1_048_576);
+    my $raw = APTRepoLocal::Servicing::Atomic->read_limited($path, $self->_metadata_limit('maximum_bytes'));
     my $release = eval { decode_json($raw) };
     !$@ && ref $release eq 'HASH'
         or die "Tomat release metadata is not a JSON object\n";
@@ -72,7 +88,7 @@ sub _release {
     my ($package_version) = $name =~ /\Atomat_(\Q$version\E-[1-9][0-9]{0,8})_amd64\.deb\z/;
     my $url = $asset->{browser_download_url} // q{};
     my $size = $asset->{size};
-    defined $size && $size =~ /\A[0-9]+\z/ && $size >= 65_536 && $size <= 134_217_728
+    defined $size && $size =~ /\A[0-9]+\z/ && $size >= $self->_limit('minimum_bytes') && $size <= $self->_limit('maximum_bytes')
         or die "Tomat release asset size is outside approved bounds\n";
     my ($sha256) = ($asset->{digest} // q{}) =~ /\Asha256:([0-9a-f]{64})\z/
         or die "Tomat release asset SHA-256 is invalid\n";
@@ -90,27 +106,37 @@ sub download {
     my $metadata_path = "$work/tomat-release.json";
     $self->http()->download(
         label => 'Tomat release metadata',
-        url => 'https://api.github.com/repos/jolars/tomat/releases/latest',
+        url => $self->release_policy()->{service_urls}{tomat_discovery},
         destination => $metadata_path,
-        minimum => 256,
-        maximum => 1_048_576,
+        minimum => $self->_metadata_limit('minimum_bytes'),
+        maximum => $self->_metadata_limit('maximum_bytes'),
         content_policy => 'metadata',
     );
     return $self->_download_release($work, $self->_release($metadata_path));
 }
 
 sub download_pinned {
-    my ($self, $work, $tag, $url, $sha256) = @_;
-    @_ == 5 or die "Tomat pinned download requires workspace, tag, URL and SHA-256\n";
-    return $self->_download_release($work, $self->_pinned_release($tag, $url, $sha256));
+    my ($self, $work, $tag, $url, $sha256, $minimum, $maximum) = @_;
+    @_ == 7 or die "Tomat pinned download requires workspace, tag, URL, SHA-256 and byte bounds\n";
+    defined $minimum && defined $maximum
+        && $minimum =~ /\A[1-9][0-9]*\z/
+        && $maximum =~ /\A[1-9][0-9]*\z/
+        && $minimum <= $maximum
+        or die "Tomat pinned download byte bounds are invalid\n";
+    return $self->_download_release(
+        $work,
+        $self->_pinned_release($tag, $url, $sha256),
+        0 + $minimum,
+        0 + $maximum,
+    );
 }
 
 sub _download_release {
-    my ($self, $work, $release) = @_;
+    my ($self, $work, $release, $minimum, $maximum) = @_;
     APTRepoLocal::Servicing::Atomic->assert_absolute_path('Tomat workspace', $work);
     my $deb_path = "$work/tomat.deb";
-    my $minimum = $release->{size} // 65_536;
-    my $maximum = $release->{size} // 134_217_728;
+    $minimum //= $release->{size} // $self->_limit('minimum_bytes');
+    $maximum //= $release->{size} // $self->_limit('maximum_bytes');
     $self->http()->download(
         label => 'Tomat',
         url => $release->{url},

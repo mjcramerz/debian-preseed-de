@@ -12,6 +12,23 @@ use APTRepoLocal::Servicing::Atomic;
 
 has http => (is => 'ro', required => 1);
 has deb  => (is => 'ro', required => 1);
+has release_policy => (is => 'ro', required => 1);
+
+sub _limit {
+    my ($self, $name) = @_;
+    my $value = $self->release_policy()->{release_deb_limits}{obsidian}{$name};
+    defined $value && !ref $value && $value =~ /\A[1-9][0-9]*\z/
+        or die "Obsidian release policy limit is unavailable: $name\n";
+    return 0 + $value;
+}
+
+sub _metadata_limit {
+    my ($self, $name) = @_;
+    my $value = $self->release_policy()->{metadata_limits}{$name};
+    defined $value && !ref $value && $value =~ /\A[1-9][0-9]*\z/
+        or die "Obsidian metadata policy limit is unavailable: $name\n";
+    return 0 + $value;
+}
 
 sub _sha256 {
     my ($self, $path) = @_;
@@ -28,7 +45,7 @@ sub _sha256 {
 
 sub _release {
     my ($self, $path) = @_;
-    my $raw = APTRepoLocal::Servicing::Atomic->read_limited($path, 1_048_576);
+    my $raw = APTRepoLocal::Servicing::Atomic->read_limited($path, $self->_metadata_limit('maximum_bytes'));
     my $release = eval { decode_json($raw) };
     !$@ && ref $release eq 'HASH'
         or die "Obsidian release metadata is not a JSON object\n";
@@ -44,7 +61,7 @@ sub _release {
     my $asset = $assets[0];
     my $url = $asset->{browser_download_url} // q{};
     my $size = $asset->{size};
-    defined $size && $size =~ /\A[0-9]+\z/ && $size >= 67_108_864 && $size <= 209_715_200
+    defined $size && $size =~ /\A[0-9]+\z/ && $size >= $self->_limit('minimum_bytes') && $size <= $self->_limit('maximum_bytes')
         or die "Obsidian release asset size is outside approved bounds\n";
     my ($sha256) = ($asset->{digest} // q{}) =~ /\Asha256:([0-9a-f]{64})\z/
         or die "Obsidian release asset SHA-256 is invalid\n";
@@ -62,10 +79,10 @@ sub download {
     my $deb_path = "$work/obsidian.deb";
     $self->http()->download(
         label => 'Obsidian release metadata',
-        url => 'https://api.github.com/repos/obsidianmd/obsidian-releases/releases/latest',
+        url => $self->release_policy()->{service_urls}{obsidian_discovery},
         destination => $metadata_path,
-        minimum => 256,
-        maximum => 1_048_576,
+        minimum => $self->_metadata_limit('minimum_bytes'),
+        maximum => $self->_metadata_limit('maximum_bytes'),
         content_policy => 'metadata',
     );
     my $release = $self->_release($metadata_path);

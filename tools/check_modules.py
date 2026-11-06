@@ -72,10 +72,15 @@ def check(seed: Path = SEED) -> int:
         raise ValueError(f'unwired or missing module: {sorted(inventory ^ (used - SHARED))}')
     # These two inputs used to be checked by the removed profile generator.
     # Validate the directly edited files now; never synthesize their contents.
-    for path in sorted((seed / 'hosts/profiles').glob('*.env')):
+    profile_dir = seed / 'hosts/profiles'
+    paths = [profile_dir / 'shared-de.env'] + sorted(
+        path for path in profile_dir.glob('*.env') if path.name != 'shared-de.env')
+    for path in paths:
         for key in ('TMPFS_VAR_SPOOL_RSYSLOG', 'SIZE_TMPFS_VAR_SPOOL_RSYSLOG_MIB'):
             values = re.findall(r'^' + key + r'="([^"\n]*)"$', path.read_text(), re.M)
             occurrences = re.findall(r'^\s*(?:export\s+)?' + key + r'=', path.read_text(), re.M)
+            if path.name != 'shared-de.env' and not occurrences:
+                continue
             if len(values) != 1 or len(occurrences) != 1:
                 raise ValueError(f'{path.name}: missing or duplicate {key}')
             value = values[0]

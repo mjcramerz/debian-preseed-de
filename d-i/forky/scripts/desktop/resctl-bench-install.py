@@ -21,6 +21,7 @@ import subprocess
 import sys
 import tarfile
 import tempfile
+import urllib.parse
 
 BINS = frozenset({'resctl-bench', 'rd-agent', 'rd-hashd', 'resctl-demo'})
 REQUIRED_BINS = BINS - {'resctl-demo'}
@@ -51,20 +52,21 @@ def policy(args: argparse.Namespace) -> None:
     if not re.fullmatch(r'[0-9a-f]{64}', args.sha256):
         raise Error('invalid RESCTL_BENCH_SHA256: expected exactly 64 lowercase '
                     'hexadecimal characters')
-    prefix = (f'https://github.com/mjcramerz/resctl-bench/releases/download/{args.tag}/'
-              f'resctl-bench-{args.version}-x86_64-unknown-linux-gnu-native')
+    prefix = f'resctl-bench-{args.version}-x86_64-unknown-linux-gnu-native'
     # Upstream publishes both legacy names and names with a 16-hex build ID.
     # The build ID is NOT the archive digest: SHA-256 remains independently
     # required and checked on the downloaded bytes before unpacking/execution.
     # A full match forbids URL aliases, other origins, query/fragment suffixes,
     # encoded separators and version/tag/architecture drift.
-    if not re.fullmatch(re.escape(prefix) + r'(?:-[0-9a-f]{16})?\.tar\.gz', args.url):
+    parsed = urllib.parse.urlsplit(args.url)
+    if (parsed.scheme != 'https' or not parsed.netloc or parsed.query or parsed.fragment or
+            not parsed.path.endswith('/' + args.tag + '/' + prefix + '.tar.gz') and
+            not re.fullmatch(r'.*/' + re.escape(args.tag) + r'/' +
+                             re.escape(prefix) + r'(?:-[0-9a-f]{16})?\.tar\.gz', parsed.path)):
         raise Error('invalid RESCTL_BENCH_URL for the configured tag/version/architecture: '
-                    f'expected {prefix}.tar.gz or {prefix}-<16 lowercase hex>.tar.gz; '
+                    f'expected the configured tag and release filename; '
                     f'got {args.url!r}')
-    if not (1024 <= args.max_archive <= 746586112
-            and args.max_archive <= args.max_extracted <= 2147483648
-            and 3 <= args.max_members <= 16384):
+    if not (args.max_archive > 0 and args.max_archive <= args.max_extracted and args.max_members >= 1):
         raise Error('release size/member bounds are invalid')
 
 

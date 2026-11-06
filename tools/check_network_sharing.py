@@ -60,7 +60,7 @@ def read_values(path: Path, initial: dict[str, str] | None = None) -> dict[str, 
 
 
 def check(seed: Path = SEED) -> int:
-    profiles = sorted((seed/'hosts/profiles').glob('*.env'))
+    profiles = sorted(path for path in (seed/'hosts/profiles').glob('*.env') if path.name != 'shared-de.env')
     if not profiles:
         raise ValueError('no network sharing profiles found')
     helper = runpy.run_path(str(seed/'scripts/late/network-sharing.py'), run_name='network_sharing_policy')
@@ -78,7 +78,12 @@ def profile_values(seed: Path, path: Path) -> dict[str, str]:
     # credentials, account IDs and domain before changing its configuration.
     initial = {'SYSTEM_DOMAIN': 'validation.invalid',
                'ACCOUNT_USERNAME': 'validation-user', 'ACCOUNT_HOME': '/home/validation-user'}
-    return read_values(seed/'hosts/installer/hosting.env', read_values(path, initial))
+    values = read_values(seed/'hosts/installer/hosting.env', initial)
+    shared = seed / 'hosts/profiles/shared-de.env'
+    if not shared.is_file():
+        raise ValueError('mandatory shared-de.env is missing')
+    values = read_values(shared, values)
+    return read_values(path, values)
 
 
 def main() -> int:

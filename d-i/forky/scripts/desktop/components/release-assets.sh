@@ -13,8 +13,10 @@ desktop_validate_release_pin() {
     wallpapers.tar.gz:wallpapers-v[0-9]*.[0-9]*.[0-9]*) ;;
     *) installer_fatal "${release_label} release tag is invalid: ${release_tag:-unset}" ;;
   esac
-  [ "$release_url" = "https://github.com/mjcramerz/themes/releases/download/${release_tag}/${release_filename}" ] ||
-    installer_fatal "${release_label} release URL does not match its pinned tag and filename"
+  case "$release_url" in
+    https://*/"${release_tag}"/"${release_filename}") ;;
+    *) installer_fatal "${release_label} release URL does not match its configured tag and filename" ;;
+  esac
   [ "${#release_sha256}" -eq 64 ] ||
     installer_fatal "${release_label} release SHA-256 must contain 64 hexadecimal characters"
   case "$release_sha256" in

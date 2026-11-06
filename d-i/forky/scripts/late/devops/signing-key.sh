@@ -1,11 +1,18 @@
 #!/bin/sh
+# shellcheck disable=SC2154
 # Sourced installer module; edit this file directly.
 
 devops_import_aptly_signing_key() (
-  signing_device=/dev/sda2
-  signing_profile_path=$DEVOPS_APTLY_GPG_SIGNING_KEY
-  signing_key_name=${signing_profile_path##*/}
-  signing_initrd_key="/${signing_key_name}"
+  signing_primary_key=$DEVOPS_APTLY_SIGNING_KEY_FILE_DI_PATH
+  signing_fallback_partition=$DEVOPS_APTLY_SIGNING_KEY_FILE_FALLBACK_PARTITION
+  signing_fallback_path=$DEVOPS_APTLY_SIGNING_KEY_FILE_FALLBACK_PATH
+  signing_fallback_directory=${signing_fallback_path%/*}
+  if [ -z "$signing_fallback_directory" ] || [ "$signing_fallback_directory" = / ]; then
+    signing_fallback_directory_suffix=
+  else
+    signing_fallback_directory_suffix=$signing_fallback_directory
+  fi
+  signing_key_name=${signing_fallback_path##*/}
   signing_maximum_bytes=1048576
   signing_copy_block_bytes=4096
   signing_mountpoint=
@@ -52,20 +59,32 @@ devops_import_aptly_signing_key() (
       devops_fatal "required Aptly signing-key import command is unavailable: $required_command"
   done
 
-  if [ -b "$signing_device" ]; then
+  if [ -e "$signing_primary_key" ] || [ -L "$signing_primary_key" ]; then
+    [ -f "$signing_primary_key" ] &&
+      [ ! -L "$signing_primary_key" ] &&
+      [ -r "$signing_primary_key" ] ||
+      devops_fatal "primary Aptly signing-key source must be a readable regular non-symlink file: $signing_primary_key"
+    signing_primary_key_real=$(readlink -f -- "$signing_primary_key") ||
+      devops_fatal "unable to resolve the primary Aptly signing-key source"
+    [ "$signing_primary_key_real" = "$signing_primary_key" ] ||
+      devops_fatal "primary Aptly signing-key source escaped the d-i root"
+    signing_source_key=$signing_primary_key
+  fi
+
+  if [ -z "$signing_source_key" ] && [ -b "$signing_fallback_partition" ]; then
     signing_mountpoint=$(mktemp -d "${tmp_env_dir}/aptly-signing-media.XXXXXX") ||
       devops_fatal "unable to allocate the Aptly signing-key mountpoint"
     chmod 0700 "$signing_mountpoint"
     installer_mounts_has_mountpoint "$signing_mountpoint" &&
       devops_fatal "new Aptly signing-key mountpoint is unexpectedly already mounted"
 
-    if ! mount -o ro,nosuid,nodev,noexec "$signing_device" "$signing_mountpoint"; then
-      devops_fatal "unable to mount the Aptly signing-key device read-only: $signing_device"
+    if ! mount -o ro,nosuid,nodev,noexec "$signing_fallback_partition" "$signing_mountpoint"; then
+      devops_fatal "unable to mount the fallback Aptly signing-key partition read-only: $signing_fallback_partition"
     fi
     installer_mounts_find_record "$signing_mountpoint" ||
       devops_fatal "Aptly signing-key mount is absent after mount completed"
-    same_device_path "$INSTALLER_MOUNT_SOURCE" "$signing_device" ||
-      devops_fatal "Aptly signing-key mount source does not match $signing_device"
+    same_device_path "$INSTALLER_MOUNT_SOURCE" "$signing_fallback_partition" ||
+      devops_fatal "Aptly signing-key mount source does not match $signing_fallback_partition"
     for required_option in ro nosuid nodev noexec; do
       case ",$INSTALLER_MOUNT_OPTIONS," in
         *",${required_option},"*) ;;
@@ -75,55 +94,45 @@ devops_import_aptly_signing_key() (
       esac
     done
 
-    signing_directory="${signing_mountpoint}/aptly-signing"
-    signing_media_key="${signing_mountpoint}${signing_profile_path}"
+    signing_directory="${signing_mountpoint}${signing_fallback_directory_suffix}"
+    signing_media_key="${signing_mountpoint}${signing_fallback_path}"
     if [ -e "$signing_directory" ] || [ -L "$signing_directory" ]; then
       [ -d "$signing_directory" ] && [ ! -L "$signing_directory" ] ||
-        devops_fatal "Aptly signing-key directory on $signing_device is not a regular directory"
+        devops_fatal "fallback Aptly signing-key directory on $signing_fallback_partition is not a regular directory"
     fi
     if [ -e "$signing_media_key" ] || [ -L "$signing_media_key" ]; then
       [ -d "$signing_directory" ] && [ ! -L "$signing_directory" ] ||
-        devops_fatal "Aptly signing-key directory on $signing_device is missing or unsafe"
+        devops_fatal "fallback Aptly signing-key directory on $signing_fallback_partition is missing or unsafe"
       [ -f "$signing_media_key" ] &&
         [ ! -L "$signing_media_key" ] &&
         [ -r "$signing_media_key" ] ||
-        devops_fatal "Aptly signing-key source on $signing_device must be a readable regular non-symlink file"
+        devops_fatal "fallback Aptly signing-key source on $signing_fallback_partition must be a readable regular non-symlink file"
 
       signing_mountpoint_real=$(readlink -f -- "$signing_mountpoint") ||
         devops_fatal "unable to resolve the Aptly signing-key mountpoint"
       signing_directory_real=$(readlink -f -- "$signing_directory") ||
         devops_fatal "unable to resolve the Aptly signing-key directory"
       signing_media_key_real=$(readlink -f -- "$signing_media_key") ||
-        devops_fatal "unable to resolve the Aptly signing-key source on $signing_device"
-      [ "$signing_directory_real" = "${signing_mountpoint_real}/aptly-signing" ] &&
+        devops_fatal "unable to resolve the fallback Aptly signing-key source on $signing_fallback_partition"
+      [ "$signing_directory_real" = "${signing_mountpoint_real}${signing_fallback_directory_suffix}" ] &&
         [ "$signing_media_key_real" = "${signing_directory_real}/${signing_key_name}" ] ||
-        devops_fatal "Aptly signing-key source escaped the mounted aptly-signing directory"
+        devops_fatal "fallback Aptly signing-key source escaped its configured directory"
       signing_source_key=$signing_media_key
     else
       if ! umount "$signing_mountpoint"; then
-        devops_fatal "unable to unmount the Aptly signing-key medium before initrd fallback"
+        devops_fatal "unable to unmount the fallback Aptly signing-key partition"
       fi
       installer_mounts_has_mountpoint "$signing_mountpoint" &&
-        devops_fatal "Aptly signing-key medium remains mounted before initrd fallback"
+        devops_fatal "fallback Aptly signing-key partition remains mounted after lookup"
       rmdir "$signing_mountpoint" ||
-        devops_fatal "unable to remove the Aptly signing-key mountpoint before initrd fallback"
+        devops_fatal "unable to remove the fallback Aptly signing-key mountpoint"
       signing_mountpoint=
     fi
   fi
 
   if [ -z "$signing_source_key" ]; then
-    if [ ! -e "$signing_initrd_key" ] && [ ! -L "$signing_initrd_key" ]; then
-      devops_fatal "Aptly signing key is absent from both ${signing_device}${signing_profile_path} and ${signing_initrd_key}"
-    fi
-    [ -f "$signing_initrd_key" ] &&
-      [ ! -L "$signing_initrd_key" ] &&
-      [ -r "$signing_initrd_key" ] ||
-      devops_fatal "Aptly signing-key initrd fallback must be a readable regular non-symlink file: $signing_initrd_key"
-    signing_initrd_key_real=$(readlink -f -- "$signing_initrd_key") ||
-      devops_fatal "unable to resolve the Aptly signing-key initrd fallback"
-    [ "$signing_initrd_key_real" = "$signing_initrd_key" ] ||
-      devops_fatal "Aptly signing-key initrd fallback escaped the d-i root"
-    signing_source_key=$signing_initrd_key
+    devops_fatal \
+      "Aptly signing key is absent from the d-i source ${signing_primary_key} and fallback partition ${signing_fallback_partition} path ${signing_fallback_path}"
   fi
 
   umask 077
@@ -373,4 +382,3 @@ imported_signing_material_count=$(
     devops_fatal "transient Aptly signing-key copy remains after import"
   staged_host_key=
 )
-

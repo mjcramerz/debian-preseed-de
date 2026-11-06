@@ -46,7 +46,7 @@ desktop_satty_validate_policy() {
       ;;
   esac
   case "$LABWC_SATTY_URL" in
-    "https://github.com/Satty-org/Satty/releases/download/v${LABWC_SATTY_VERSION}/satty-x86_64-unknown-linux-gnu.tar.gz") ;;
+    https://*/*) ;;
     *)
       installer_fatal "LABWC_SATTY_URL does not match the pinned Satty release contract"
       ;;
@@ -66,8 +66,8 @@ desktop_satty_validate_policy() {
   [ "$LABWC_SATTY_MAXIMUM_BYTES" -ge "$LABWC_SATTY_MINIMUM_BYTES" ] ||
     installer_fatal "LABWC_SATTY_MAXIMUM_BYTES must not be smaller than LABWC_SATTY_MINIMUM_BYTES"
 
-  [ "$LABWC_SATTY_GLIBC_VERSION" = 2.44-1 ] ||
-    installer_fatal "LABWC_SATTY_GLIBC_VERSION must remain pinned to 2.44-1"
+  printf '%s\n' "$LABWC_SATTY_GLIBC_VERSION" | grep -Eq '^[0-9]+\.[0-9]+-[0-9]+$' ||
+    installer_fatal "LABWC_SATTY_GLIBC_VERSION must be a Debian package version"
   [ "$LABWC_SATTY_GLIBC_ARCHITECTURE" = amd64 ] ||
     installer_fatal "LABWC_SATTY_GLIBC_ARCHITECTURE must remain pinned to amd64"
   case "$LABWC_SATTY_GLIBC_LIBC6_SHA256" in
@@ -77,8 +77,6 @@ desktop_satty_validate_policy() {
   esac
   [ "${#LABWC_SATTY_GLIBC_LIBC6_SHA256}" -eq 64 ] ||
     installer_fatal "LABWC_SATTY_GLIBC_LIBC6_SHA256 must contain 64 characters"
-  [ "$LABWC_SATTY_GLIBC_LIBC6_SHA256" = 17d9a246ae46a457227c19a3d821c49d68b9c6f9531bfa6f52d9c064307de585 ] ||
-    installer_fatal "LABWC_SATTY_GLIBC_LIBC6_SHA256 must remain pinned to the Debian 2.44-1 amd64 package"
   case "$LABWC_SATTY_GLIBC_GCONV_SHA256" in
     *[!0123456789abcdef]*|'')
       installer_fatal "LABWC_SATTY_GLIBC_GCONV_SHA256 must contain lowercase hexadecimal characters"
@@ -86,10 +84,8 @@ desktop_satty_validate_policy() {
   esac
   [ "${#LABWC_SATTY_GLIBC_GCONV_SHA256}" -eq 64 ] ||
     installer_fatal "LABWC_SATTY_GLIBC_GCONV_SHA256 must contain 64 characters"
-  [ "$LABWC_SATTY_GLIBC_GCONV_SHA256" = 00408257a5287df51898bb5f71beca80a37f1b569c2ae6b977cb6b27de2929b2 ] ||
-    installer_fatal "LABWC_SATTY_GLIBC_GCONV_SHA256 must remain pinned to the Debian 2.44-1 amd64 package"
-  [ "$LABWC_SATTY_GLIBC_RUNTIME_ROOT" = /opt/glibc/2.44-1/satty ] ||
-    installer_fatal "LABWC_SATTY_GLIBC_RUNTIME_ROOT must remain pinned to /opt/glibc/2.44-1/satty"
+  [ "$LABWC_SATTY_GLIBC_RUNTIME_ROOT" = "/opt/glibc/${LABWC_SATTY_GLIBC_VERSION}/satty" ] ||
+    installer_fatal "LABWC_SATTY_GLIBC_RUNTIME_ROOT must match LABWC_SATTY_GLIBC_VERSION"
   desktop_satty_validate_unsigned_integer LABWC_SATTY_GLIBC_MINIMUM_BYTES "$LABWC_SATTY_GLIBC_MINIMUM_BYTES"
   desktop_satty_validate_unsigned_integer LABWC_SATTY_GLIBC_MAXIMUM_BYTES "$LABWC_SATTY_GLIBC_MAXIMUM_BYTES"
   [ "$LABWC_SATTY_GLIBC_MINIMUM_BYTES" -gt 0 ] ||
@@ -197,7 +193,7 @@ desktop_satty_install_private_glibc() {
   satty_glibc_deb_host="/target${satty_glibc_deb}"
   satty_glibc_gconv_deb="${satty_glibc_work_dir}/libc-gconv-modules-extra_${LABWC_SATTY_GLIBC_VERSION}_${LABWC_SATTY_GLIBC_ARCHITECTURE}.deb"
   satty_glibc_gconv_deb_host="/target${satty_glibc_gconv_deb}"
-  satty_glibc_snapshot_base=https://snapshot.debian.org/archive/debian/20260810T202458Z/pool/main/g/glibc
+  satty_glibc_snapshot_base=${LABWC_SATTY_GLIBC_SNAPSHOT_BASE_URL:?LABWC_SATTY_GLIBC_SNAPSHOT_BASE_URL must be set}
   satty_glibc_deb_url="${satty_glibc_snapshot_base}/libc6_${LABWC_SATTY_GLIBC_VERSION}_${LABWC_SATTY_GLIBC_ARCHITECTURE}.deb"
   satty_glibc_gconv_deb_url="${satty_glibc_snapshot_base}/libc-gconv-modules-extra_${LABWC_SATTY_GLIBC_VERSION}_${LABWC_SATTY_GLIBC_ARCHITECTURE}.deb"
 

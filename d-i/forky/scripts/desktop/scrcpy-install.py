@@ -15,6 +15,7 @@ import stat
 import subprocess
 import tarfile
 import tempfile
+import urllib.parse
 
 BIN_DIR = Path('/usr/local/bin')
 DOC_DIR = Path('/usr/local/share/doc/scrcpy')
@@ -43,13 +44,12 @@ def policy(args: argparse.Namespace) -> None:
         raise Error('invalid scrcpy archive SHA-256')
     if not re.fullmatch(r'[0-9a-f]{64}', args.server_sha256):
         raise Error('invalid scrcpy server SHA-256')
-    expected = (f'https://github.com/Genymobile/scrcpy/releases/download/{args.tag}/'
-                f'scrcpy-linux-x86_64-{args.tag}.tar.gz')
-    if args.url != expected:
-        raise Error('invalid scrcpy release URL')
-    if not (1_048_576 <= args.max_archive <= 536_870_912
-            and args.max_archive <= args.max_extracted <= 2_147_483_648
-            and 4 <= args.max_members <= 16_384):
+    parsed = urllib.parse.urlsplit(args.url)
+    archive_name = Path(parsed.path).name
+    if (parsed.scheme != 'https' or not parsed.netloc or parsed.query or parsed.fragment or
+            not re.fullmatch(r'[A-Za-z0-9._-]+\.tar\.gz', archive_name)):
+        raise Error('invalid scrcpy release URL or archive filename')
+    if not (args.max_archive > 0 and args.max_archive <= args.max_extracted and args.max_members >= 1):
         raise Error('release size/member bounds are invalid')
 
 
@@ -92,7 +92,8 @@ def unpack(args: argparse.Namespace, archive: Path, stage: Path) -> tuple[Path, 
                 raise Error('decompressed archive exceeds the configured ceiling')
             output.write(block)
 
-    expected_root = f'scrcpy-linux-x86_64-{args.tag}'
+    archive_name = Path(urllib.parse.urlsplit(args.url).path).name
+    expected_root = archive_name.removesuffix('.tar.gz')
     with tarfile.open(raw, mode='r:') as tar:
         members: dict[PurePosixPath, tarfile.TarInfo] = {}
         total = 0

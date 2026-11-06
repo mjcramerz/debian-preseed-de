@@ -21,7 +21,6 @@ OPERATION_SECONDS = 1200
 CLEANUP_SECONDS = 5
 MAX_OUTPUT = 2 * 1024 * 1024
 MAX_LINE = 16384
-FEED = "https://urlhaus-api.abuse.ch/v2/files/exports/${auth_key}/urlhaus_clamav.ndb"
 LOG_FORMAT = "%(levelname)s: %(message)s"
 EXPORT_KEY = re.compile(rb"(/v2/files/exports/)[^/\s\"'<>]+", re.IGNORECASE)
 
@@ -50,9 +49,11 @@ def auth_key() -> bytes:
     config = configparser.ConfigParser(interpolation=configparser.ExtendedInterpolation())
     config.read_string(raw.decode("utf-8"))
     key = config.get("urlhaus", "auth_key", raw=True)
+    feed = config.get("urlhaus", "url_urlhaus", raw=True)
     if (key and re.fullmatch(r"[A-Za-z0-9._~-]{1,256}", key) is None
             or config.getboolean("urlhaus", "enabled") != bool(key)
-            or config.get("urlhaus", "url_urlhaus", raw=True) != FEED
+            or not feed.startswith("https://")
+            or "${auth_key}" not in feed
             or config.defaults().get("log_format") != LOG_FORMAT
             or any(config.get(section, "log_method") != "console" for section in config)):
         raise UpdateFailure("invalid-private-configuration")

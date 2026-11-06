@@ -28,6 +28,31 @@ from build import build, payload_files, payload_source
 ROOT = Path(__file__).resolve().parents[1]
 SEED = ROOT / 'd-i/forky'
 SAFE_PATH = re.compile(r'[A-Za-z0-9_./@+-]+\Z')
+ENV_ASSIGNMENT = re.compile(r'([A-Z0-9_]+)="([^"\\$`\x00-\x1f\x7f]*)"')
+
+
+def profile_paths(seed: Path = SEED) -> list[Path]:
+    return sorted(path for path in (seed / 'hosts/profiles').glob('*.env')
+                  if path.name != 'shared-de.env')
+
+
+def profile_values(profile: Path, prefixes: tuple[str, ...]) -> dict[str, str]:
+    """Return shared defaults overlaid by one explicit host profile."""
+    shared = profile.parent / 'shared-de.env'
+    values: dict[str, str] = {}
+    for source in (shared, profile):
+        if not source.is_file():
+            continue
+        seen: set[str] = set()
+        for line in source.read_text().splitlines():
+            if not line.startswith(prefixes):
+                continue
+            match = re.fullmatch(ENV_ASSIGNMENT, line)
+            if not match or match[1] in seen:
+                raise ValueError(f'{source.name}: malformed or duplicate profile assignment')
+            seen.add(match[1])
+            values[match[1]] = match[2]
+    return values
 
 def resolve_python_interpreter() -> str:
     candidate = sys.executable or shutil.which('python3')
@@ -84,6 +109,9 @@ def validate_apparmor_modes() -> None:
         raise ValueError('unmanaged repository AppArmor profile: ' + ', '.join(sorted(missing)))
 
 def validate(paths: list[Path]) -> None:
+    shared_profile = SEED / 'hosts/profiles/shared-de.env'
+    if not shared_profile.is_file():
+        raise ValueError('mandatory shared-de.env is missing')
     validate_apparmor_modes()
     logging_checker = runpy.run_path(str(ROOT / 'tools/check_logging.py'))
     logging_checker['check'](SEED)
@@ -180,15 +208,8 @@ def validate(paths: list[Path]) -> None:
 def validate_iocost_profiles() -> None:
     """Validate literal profile data using the exact target-side scalar policy."""
     helper = SEED / 'scripts/late/iocost.sh'
-    for profile in sorted((SEED / 'hosts/profiles').glob('*.env')):
-        values = {}
-        for line in profile.read_text().splitlines():
-            if not line.startswith(('IOCOST_', 'IO_COST_')):
-                continue
-            match = re.fullmatch(r'([A-Z0-9_]+)="([^"\\$`\x00-\x1f\x7f]*)"', line)
-            if not match or match[1] in values:
-                raise ValueError(f'{profile.name}: malformed or duplicate IOCost input')
-            values[match[1]] = match[2]
+    for profile in profile_paths():
+        values = profile_values(profile, ('IOCOST_', 'IO_COST_'))
         result = subprocess.run(['/bin/sh', '-eu', '-c', '. "$1"; iocost_placeholder_map',
                                  'iocost-profile-check', str(helper)],
                                 env={'PATH': '/usr/sbin:/usr/bin:/sbin:/bin', 'LC_ALL': 'C', **values},
@@ -198,15 +219,9 @@ def validate_iocost_profiles() -> None:
 
 def validate_systemd_profiles() -> None:
     helper = SEED / 'scripts/late/templates.sh'
-    for profile in sorted((SEED / 'hosts/profiles').glob('*.env')):
+    for profile in profile_paths():
         values = {}
-        for line in profile.read_text().splitlines():
-            if not line.startswith(('SYSTEMD_', 'TMPFS_VAR_LOG=')):
-                continue
-            match = re.fullmatch(r'([A-Z0-9_]+)="([^"\\$`\x00-\x1f\x7f]*)"', line)
-            if not match or match[1] in values:
-                raise ValueError(f'{profile.name}: malformed or duplicate systemd policy')
-            values[match[1]] = match[2]
+        values.update(profile_values(profile, ('SYSTEMD_', 'TMPFS_VAR_LOG=')))
         result = subprocess.run(['/bin/sh', '-eu', '-c',
             'installer_fatal() { printf "%s\\n" "$*" >&2; return 1; }; . "$1"; systemd_resource_placeholder_map',
             'systemd-profile-check', str(helper)],
@@ -217,10 +232,9 @@ def validate_systemd_profiles() -> None:
 
 def validate_obsidian_git_profiles() -> None:
     """Reject an absent, duplicate or ambiguous automation flag before publication."""
-    for profile in sorted((SEED / 'hosts/profiles').glob('*.env')):
-        rows = [line for line in profile.read_text().splitlines()
-                if re.match(r'^\s*OBSIDIAN_GIT_AUTO_ENABLE\b', line)]
-        if len(rows) != 1 or not re.fullmatch(r'OBSIDIAN_GIT_AUTO_ENABLE="(?:true|false)"', rows[0]):
+    for profile in profile_paths():
+        values = profile_values(profile, ('OBSIDIAN_GIT_AUTO_ENABLE=',))
+        if set(values) != {'OBSIDIAN_GIT_AUTO_ENABLE'} or values['OBSIDIAN_GIT_AUTO_ENABLE'] not in {'true', 'false'}:
             raise ValueError(f'{profile.name}: OBSIDIAN_GIT_AUTO_ENABLE must be exactly one quoted true/false assignment')
 
 def validate_browser_repository_profiles() -> None:
@@ -228,36 +242,22 @@ def validate_browser_repository_profiles() -> None:
     expected = {'BROWSER_NETSCAPE_REPOSITORY_URL': 'git@gitlab.com:core-assets/helpers/netscape.git',
                 'BROWSER_NETSCAPE_REPOSITORY_BRANCH': 'mcr/main',
                 'BROWSER_NETSCAPE_DIRECTORY': 'Workspace/netscape'}
-    profiles = sorted((SEED / 'hosts/profiles').glob('*.env'))
+    profiles = profile_paths()
     if not profiles:
         raise ValueError('no desktop profiles available for browser repository validation')
     for profile in profiles:
-        values = {}
-        for line in profile.read_text().splitlines():
-            if not re.match(r'^\s*(?:export\s+)?BROWSER_NETSCAPE_', line):
-                continue
-            match = re.fullmatch(r'(BROWSER_NETSCAPE_[A-Z_]+)="([^"\\$`\x00-\x1f\x7f]*)"', line)
-            if not match or match[1] in values:
-                raise ValueError(f'{profile.name}: malformed or duplicate browser repository assignment')
-            values[match[1]] = match[2]
+        values = profile_values(profile, ('BROWSER_NETSCAPE_',))
         if values != expected:
             raise ValueError(f'{profile.name}: unapproved browser repository, branch or checkout policy')
 
 def validate_tomat_profiles() -> None:
     """Reject absent/unsafe bootstrap pins before publishing any installer files."""
     required = {"SOFTWARE_TOMAT_TAG", "SOFTWARE_TOMAT_URL", "SOFTWARE_TOMAT_SHA256"}
-    profiles = sorted((SEED / "hosts/profiles").glob("*.env"))
+    profiles = profile_paths()
     if not profiles:
         raise ValueError("no desktop profiles available for Tomat pin validation")
     for profile in profiles:
-        values = {}
-        for line in profile.read_text().splitlines():
-            if not re.match(r"\s*(?:export\s+)?SOFTWARE_TOMAT_", line):
-                continue
-            match = re.fullmatch(r'([A-Z0-9_]+)="([^"\\$`\x00-\x1f\x7f]*)"', line)
-            if not match or match[1] in values or match[1] not in required:
-                raise ValueError(f"{profile.name}: malformed, duplicate or unknown Tomat pin")
-            values[match[1]] = match[2]
+        values = profile_values(profile, ('SOFTWARE_TOMAT_',))
         if set(values) != required:
             raise ValueError(f"{profile.name}: missing Tomat tag, URL or SHA-256")
         tag = values["SOFTWARE_TOMAT_TAG"]

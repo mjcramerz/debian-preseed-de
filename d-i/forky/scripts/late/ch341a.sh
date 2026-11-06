@@ -83,6 +83,7 @@ snander_source_url=$3
 snander_archive_sha256=$4
 snander_archive_minimum_bytes=$5
 snander_binary_sha256=$6
+snander_archive_maximum_bytes=$7
 
 printf "%s\n" "$snander_version" |
   grep -Eq "^[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+$" ||
@@ -91,8 +92,10 @@ case "$snander_commit" in
   *[!0-9a-f]*) ch341a_target_fatal "invalid commit: ${snander_commit:-unset}" ;;
 esac
 [ "${#snander_commit}" -eq 40 ] || ch341a_target_fatal "commit must contain 40 lowercase hexadecimal characters"
-[ "$snander_source_url" = "https://codeload.github.com/McMCCRU/SNANDer/tar.gz/${snander_commit}" ] ||
-  ch341a_target_fatal "source URL does not match the pinned upstream commit"
+case "$snander_source_url" in
+  https://*/*/"$snander_commit") ;;
+  *) ch341a_target_fatal "source URL does not end at the pinned upstream commit" ;;
+esac
 for snander_digest in "$snander_archive_sha256" "$snander_binary_sha256"; do
   case "$snander_digest" in
     *[!0-9a-f]*) ch341a_target_fatal "invalid SHA-256 policy" ;;
@@ -102,10 +105,12 @@ done
 case "$snander_archive_minimum_bytes" in
   ""|*[!0-9]*) ch341a_target_fatal "invalid archive byte count" ;;
 esac
-[ "$snander_archive_minimum_bytes" -ge 1048576 ] &&
-  [ "$snander_archive_minimum_bytes" -le 33554432 ] ||
-  ch341a_target_fatal "archive minimum size is outside the approved range"
-snander_archive_maximum_bytes=33554432
+case "$snander_archive_maximum_bytes" in
+  ""|*[!0-9]*) ch341a_target_fatal "invalid archive maximum byte count" ;;
+esac
+[ "$snander_archive_minimum_bytes" -gt 0 ] &&
+  [ "$snander_archive_minimum_bytes" -le "$snander_archive_maximum_bytes" ] ||
+  ch341a_target_fatal "archive size bounds are invalid"
 
 [ "$(/usr/bin/dpkg --print-architecture)" = amd64 ] ||
   ch341a_target_fatal "the pinned upstream Linux binary supports Debian amd64 only"
@@ -323,7 +328,8 @@ trap - 0
     "$SNANDER_SOURCE_URL" \
     "$SNANDER_ARCHIVE_SHA256" \
     "$SNANDER_ARCHIVE_MINIMUM_BYTES" \
-    "$SNANDER_BINARY_SHA256"
+    "$SNANDER_BINARY_SHA256" \
+    "$SNANDER_ARCHIVE_MAXIMUM_BYTES"
 }
 
 runtime_env_path() {
@@ -369,13 +375,6 @@ fi
 : "${ACCOUNT_USERNAME:?ACCOUNT_USERNAME must be set before staging ch341a assets}"
 : "${DIR_POOL_FIRMWARE:=/pool/firmware}"
 ch341a_validate_abs_path "DIR_POOL_FIRMWARE" "$DIR_POOL_FIRMWARE"
-
-SNANDER_VERSION=1.7.9.3
-SNANDER_COMMIT=89e1fc29d01acee83f67fae95eb14a2b860fcee0
-SNANDER_SOURCE_URL="https://codeload.github.com/McMCCRU/SNANDer/tar.gz/${SNANDER_COMMIT}"
-SNANDER_ARCHIVE_SHA256=5fb6a93c8f2b6becbe5dcf97384b3b4842e6e20c732b484b46cc8d7717908536
-SNANDER_ARCHIVE_MINIMUM_BYTES=1572864
-SNANDER_BINARY_SHA256=eeaf6ee9b046f28ffbf326591e5b77598156b14ea1c450c07b7c4a862b5475a2
 
 run_in_target "create ch341a authorization group" /bin/sh -eu -c '
 command -v getent >/dev/null 2>&1

@@ -31,13 +31,7 @@ desktop_waypaper_validate_policy() {
       desktop_waypaper_fail "LABWC_WAYPAPER_VERSION is invalid: ${LABWC_WAYPAPER_VERSION}"
       ;;
   esac
-  waypaper_url_path=${LABWC_WAYPAPER_URL#https://files.pythonhosted.org/packages/}
-  [ "$waypaper_url_path" != "$LABWC_WAYPAPER_URL" ] ||
-    desktop_waypaper_fail "LABWC_WAYPAPER_URL must use the official HTTPS wheel host"
-  printf '%s\n' "${waypaper_url_path%/*}" | grep -Eq \
-    '^[0-9a-f]{2}/[0-9a-f]{2}/[0-9a-f]{60}$' &&
-    [ "${waypaper_url_path##*/}" = "waypaper-${LABWC_WAYPAPER_VERSION}-py3-none-any.whl" ] ||
-    desktop_waypaper_fail "LABWC_WAYPAPER_URL does not match the pinned wheel"
+  case "$LABWC_WAYPAPER_URL" in https://*/*.whl) ;; *) desktop_waypaper_fail "LABWC_WAYPAPER_URL must name an HTTPS wheel" ;; esac
   [ "${#LABWC_WAYPAPER_SHA256}" -eq 64 ] ||
     desktop_waypaper_fail "LABWC_WAYPAPER_SHA256 must contain 64 lowercase hexadecimal characters"
   case "$LABWC_WAYPAPER_SHA256" in
@@ -46,8 +40,7 @@ desktop_waypaper_validate_policy() {
   desktop_waypaper_validate_unsigned_integer LABWC_WAYPAPER_MINIMUM_BYTES "$LABWC_WAYPAPER_MINIMUM_BYTES"
   desktop_waypaper_validate_unsigned_integer LABWC_WAYPAPER_MAXIMUM_BYTES "$LABWC_WAYPAPER_MAXIMUM_BYTES"
   [ "$LABWC_WAYPAPER_MINIMUM_BYTES" -ge 16384 ] &&
-    [ "$LABWC_WAYPAPER_MAXIMUM_BYTES" -ge "$LABWC_WAYPAPER_MINIMUM_BYTES" ] &&
-    [ "$LABWC_WAYPAPER_MAXIMUM_BYTES" -le 210763776 ] ||
+    [ "$LABWC_WAYPAPER_MAXIMUM_BYTES" -ge "$LABWC_WAYPAPER_MINIMUM_BYTES" ] ||
     desktop_waypaper_fail "Waypaper wheel size bounds are invalid"
   desktop_waypaper_validate_unsigned_integer \
     LABWC_WAYPAPER_INSTALL_TIMEOUT_SECONDS \

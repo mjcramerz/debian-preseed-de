@@ -15,17 +15,8 @@ import sys
 import tempfile
 import zipfile
 
-# Upstream immutable release asset digests (GitHub release asset SHA-256).
-# https://github.com/mcmilk/7-Zip-zstd/releases/tag/v26.02-v1.5.7-R2
-TAG = 'v26.02-v1.5.7-R2'
-RELEASES = {
-    'amd64': ('x64', 62, 'be246e5a284d3b5e738bad5cbb24c2662996ddb9776e09575b5099ab53fa0ba3'),
-    'arm64': ('arm64', 183, '64511f6ebc32d5257a535b33b21a5b6712c72aa91e28524f41e1ce92e803c909'),
-}
 DESTINATION = Path('/usr/local/lib/compz')
 ENV = {'PATH': '/usr/bin:/bin', 'HOME': '/nonexistent', 'LC_ALL': 'C'}
-MAX_DOWNLOAD = 16 * 1024**2
-MAX_EXPANDED = 64 * 1024**2
 
 
 class Error(RuntimeError):
@@ -44,12 +35,13 @@ def trusted_directory(path: Path) -> None:
     path.chmod(0o755)
 
 
-def extract_binary(archive: Path, target: Path, machine: int) -> None:
+def extract_binary(archive: Path, target: Path, machine: int,
+                   maximum_expanded: int, maximum_members: int) -> None:
     with zipfile.ZipFile(archive) as package:
         entries = package.infolist()
         names = set()
         total = 0
-        if not 1 <= len(entries) <= 32:
+        if not 1 <= len(entries) <= maximum_members:
             raise Error('invalid codec archive member count')
         for item in entries:
             name = item.filename
@@ -57,17 +49,17 @@ def extract_binary(archive: Path, target: Path, machine: int) -> None:
             if (not re.fullmatch(r'[A-Za-z0-9._-]{1,128}', name) or name in ('.', '..') or
                     name in names or item.flag_bits & 1 or
                     stat.S_IFMT(mode) not in (0, stat.S_IFREG) or
-                    not 0 <= item.file_size <= MAX_EXPANDED):
+                    not 0 <= item.file_size <= maximum_expanded):
                 raise Error('invalid codec release archive member')
             names.add(name)
             total += item.file_size
-        if total > MAX_EXPANDED or '7zz' not in names:
+        if total > maximum_expanded or '7zz' not in names:
             raise Error('codec release has no bounded standalone 7zz payload')
         with package.open('7zz') as source, target.open('xb') as output:
             copied = 0
             while block := source.read(1024 * 1024):
                 copied += len(block)
-                if copied > MAX_EXPANDED:
+                if copied > maximum_expanded:
                     raise Error('codec binary exceeds its extraction bound')
                 output.write(block)
             output.flush()
@@ -103,9 +95,33 @@ def install() -> None:
     os.umask(0o077)
     architecture = subprocess.run(['/usr/bin/dpkg', '--print-architecture'], env=ENV,
                                   capture_output=True, text=True, timeout=10, check=True).stdout.strip()
-    if architecture not in RELEASES:
+    tag = os.environ.get('LABWC_7ZIP_ZSTD_TAG', '')
+    maximum_download = os.environ.get('LABWC_7ZIP_ZSTD_MAXIMUM_BYTES', '')
+    maximum_expanded = os.environ.get('LABWC_7ZIP_ZSTD_MAXIMUM_EXTRACTED_BYTES', '')
+    maximum_members = os.environ.get('LABWC_7ZIP_ZSTD_MAXIMUM_MEMBERS', '')
+    if not re.fullmatch(r'v[0-9A-Za-z._-]+', tag):
+        raise Error('invalid configured compz release tag')
+    try:
+        maximum_download = int(maximum_download)
+        maximum_expanded = int(maximum_expanded)
+        maximum_members = int(maximum_members)
+    except ValueError as exc:
+        raise Error('invalid configured compz archive limits') from exc
+    if not (0 < maximum_download <= maximum_expanded and maximum_members > 0):
+        raise Error('invalid configured compz archive limits')
+    releases = {
+        'amd64': ('x64', 62, os.environ.get('LABWC_7ZIP_ZSTD_AMD64_URL', ''),
+                  os.environ.get('LABWC_7ZIP_ZSTD_AMD64_SHA256', '')),
+        'arm64': ('arm64', 183, os.environ.get('LABWC_7ZIP_ZSTD_ARM64_URL', ''),
+                  os.environ.get('LABWC_7ZIP_ZSTD_ARM64_SHA256', '')),
+    }
+    if architecture not in releases:
         raise Error('no verified upstream FLZMA2 binary is pinned for architecture ' + architecture)
-    variant, machine, expected = RELEASES[architecture]
+    variant, machine, url, expected = releases[architecture]
+    if (not re.fullmatch(r'https://[^\s]+/[^\s/]+\.zip', url) or
+            not url.endswith(f'linux-gcc-{variant}.zip') or
+            not re.fullmatch(r'[0-9a-f]{64}', expected)):
+        raise Error('invalid configured compz release URL or digest')
     trusted_directory(DESTINATION)
     # Keep both the lock and execution probe off noexec temporary filesystems.
     lock_fd = os.open(DESTINATION / '.install.lock', os.O_RDWR | os.O_CREAT | os.O_NOFOLLOW | os.O_CLOEXEC, 0o600)
@@ -117,21 +133,20 @@ def install() -> None:
         with tempfile.TemporaryDirectory(prefix='.install-', dir=DESTINATION) as temporary:
             work = Path(temporary)
             archive = work / 'release.zip'
-            url = f'https://github.com/mcmilk/7-Zip-zstd/releases/download/{TAG}/linux-gcc-{variant}.zip'
             subprocess.run(['/usr/bin/curl', '--disable', '--fail', '--silent', '--show-error',
                             '--location', '--proto', '=https', '--proto-redir', '=https', '--max-redirs', '4',
                             '--connect-timeout', '15', '--max-time', '300', '--retry', '2',
-                            '--retry-max-time', '300', '--max-filesize', str(MAX_DOWNLOAD),
+                            '--retry-max-time', '300', '--max-filesize', str(maximum_download),
                             '--output', str(archive), '--url', url], env=ENV,
                            stdin=subprocess.DEVNULL, timeout=340, check=True)
-            if not 1 <= archive.stat().st_size <= MAX_DOWNLOAD:
+            if not 1 <= archive.stat().st_size <= maximum_download:
                 raise Error('invalid codec download size')
             with archive.open('rb') as source:
                 actual = hashlib.file_digest(source, 'sha256').hexdigest()
             if actual != expected:
                 raise Error('codec SHA-256 mismatch; nothing installed')
             binary = work / '7zz'
-            extract_binary(archive, binary, machine)
+            extract_binary(archive, binary, machine, maximum_expanded, maximum_members)
             verify_codec(binary, work)
             binary.chmod(0o755)
             os.replace(binary, DESTINATION / '7zz')
@@ -140,7 +155,7 @@ def install() -> None:
                 os.fsync(directory_fd)
             finally:
                 os.close(directory_fd)
-            print(f'compz: installed verified {TAG} {architecture} standalone FLZMA2 codec')
+            print(f'compz: installed verified {tag} {architecture} standalone FLZMA2 codec')
     finally:
         os.close(lock_fd)
 

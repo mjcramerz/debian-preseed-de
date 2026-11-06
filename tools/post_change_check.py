@@ -790,6 +790,7 @@ def check_waybar_geometry_contract(paths: list[Path], errors: list[str],
     changed_profiles = [
         path for path in paths
         if path.is_relative_to(WAYBAR_PROFILE_ROOT) and path.suffix == '.env'
+        and path.name != 'shared-de.env'
     ]
     geometry_inputs_changed = (
         WAYBAR_GEOMETRY_SCHEMA in paths
@@ -799,7 +800,7 @@ def check_waybar_geometry_contract(paths: list[Path], errors: list[str],
     if not changed_profiles and not geometry_inputs_changed:
         counts['waybar_geometry_profiles'] = 0
         return
-    profiles = changed_profiles or sorted(WAYBAR_PROFILE_ROOT.glob('*.env'))
+    profiles = changed_profiles or sorted(path for path in WAYBAR_PROFILE_ROOT.glob('*.env') if path.name != 'shared-de.env')
     try:
         specs: list[tuple[str, str, int, int]] = []
         for line_number, raw in enumerate(_read_text(WAYBAR_GEOMETRY_SCHEMA).splitlines(), 1):
@@ -820,21 +821,27 @@ def check_waybar_geometry_contract(paths: list[Path], errors: list[str],
         assignment = re.compile(
             r'(?:export\s+)?(LABWC_WAYBAR_(?:INTERNAL|EXTERNAL)_[A-Z][A-Z0-9_]*)="([^"\r\n]*)"$'
         )
+        shared = WAYBAR_PROFILE_ROOT / 'shared-de.env'
+        if not shared.is_file():
+            raise ValueError(f'{shared.relative_to(ROOT)}: mandatory shared profile is missing')
         for profile in profiles:
             values: dict[str, str] = {}
-            for line_number, raw in enumerate(_read_text(profile).splitlines(), 1):
-                if not raw.startswith((
-                    'LABWC_WAYBAR_INTERNAL_', 'LABWC_WAYBAR_EXTERNAL_',
-                    'export LABWC_WAYBAR_INTERNAL_', 'export LABWC_WAYBAR_EXTERNAL_',
-                )):
-                    continue
-                match = assignment.fullmatch(raw)
-                if match is None:
-                    raise ValueError(f'{profile.relative_to(ROOT)}:{line_number}: malformed Waybar geometry assignment')
-                key, value = match.groups()
-                if key in values:
-                    raise ValueError(f'{profile.relative_to(ROOT)}:{line_number}: duplicate {key}')
-                values[key] = value
+            for source in (shared, profile):
+                source_values: dict[str, str] = {}
+                for line_number, raw in enumerate(_read_text(source).splitlines(), 1):
+                    if not raw.startswith((
+                        'LABWC_WAYBAR_INTERNAL_', 'LABWC_WAYBAR_EXTERNAL_',
+                        'export LABWC_WAYBAR_INTERNAL_', 'export LABWC_WAYBAR_EXTERNAL_',
+                    )):
+                        continue
+                    match = assignment.fullmatch(raw)
+                    if match is None:
+                        raise ValueError(f'{source.relative_to(ROOT)}:{line_number}: malformed Waybar geometry assignment')
+                    key, value = match.groups()
+                    if key in source_values:
+                        raise ValueError(f'{source.relative_to(ROOT)}:{line_number}: duplicate {key}')
+                    source_values[key] = value
+                values.update(source_values)
             if set(values) != expected:
                 missing = sorted(expected - set(values))
                 extra = sorted(set(values) - expected)

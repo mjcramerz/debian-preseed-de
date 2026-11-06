@@ -14,6 +14,7 @@ use File::Temp qw(tempfile);
 use Moo;
 use MooX::StrictConstructor;
 use MooX::TypeTiny;
+use JSON::PP qw(decode_json);
 use POSIX qw(strftime WIFEXITED WEXITSTATUS WIFSIGNALED WTERMSIG);
 use Types::Standard qw(Object Str);
 
@@ -57,6 +58,8 @@ has models => (
         return AICopilots::ModelStore->new(state => $self->state());
     },
 );
+
+use constant ENDPOINTS_PATH => '/usr/local/share/labwc-ai-copilots/endpoints.json';
 
 my %ACTION_ARGUMENTS = (
     'codex-new-session'           => [0, 0],
@@ -131,6 +134,22 @@ my %TERMINAL_ACTION = map { $_ => 1 } qw(
 sub _fatal {
     my ($message) = @_;
     die "labwc-ai-copilots-action: $message\n";
+}
+
+sub _endpoint {
+    my ($self, $name) = @_;
+    open my $fh, '<:raw', ENDPOINTS_PATH
+        or _fatal('AI model endpoint policy is unavailable');
+    local $/;
+    my $raw = <$fh>;
+    close $fh or _fatal('AI model endpoint policy could not be read');
+    defined($raw) && length($raw) <= 8192
+        or _fatal('AI model endpoint policy is too large');
+    my $policy = eval { decode_json($raw) };
+    ref($policy) eq 'HASH' && defined($policy->{$name}) && !ref($policy->{$name})
+        && $policy->{$name} =~ /\Ahttps:\/\/[^\s"\\]+\z/
+        or _fatal("AI model endpoint policy is invalid: $name");
+    return $policy->{$name};
 }
 
 sub _assert_text {
@@ -773,7 +792,7 @@ sub _llama_action {
             $query = $queries{$category};
         }
         my $sort = $category eq 'recent' ? 'modified' : 'trending';
-        my $url = 'https://huggingface.co/models?library=gguf&sort='
+        my $url = $self->_endpoint('huggingface_web_base_url') . '/models?library=gguf&sort='
             . $sort . '&search=' . _percent_encode($query);
         return $self->_run('/usr/bin/xdg-open', $url);
     }

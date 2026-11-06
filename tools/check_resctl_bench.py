@@ -44,24 +44,32 @@ ASSIGNMENT = re.compile(r'RESCTL_BENCH_([A-Z0-9_]+)="([^"\\$`\r\n]*)"')
 
 
 def read_pins(path: Path) -> dict[str, str]:
-    st = path.lstat()
-    if not stat.S_ISREG(st.st_mode) or not 1 <= st.st_size <= 1024 * 1024:
-        raise ValueError(f'{path.name}: profile must be a bounded regular file')
+    sources = [path.parent / 'shared-de.env', path]
     pins: dict[str, str] = {}
-    for number, line in enumerate(path.read_text(encoding='utf-8').splitlines(), 1):
-        line = line.strip()
-        if line.startswith('#') or 'RESCTL_BENCH_' not in line:
+    for source in sources:
+        if not source.is_file():
+            if source.name == 'shared-de.env':
+                raise ValueError('mandatory shared-de.env is missing')
             continue
-        match = ASSIGNMENT.fullmatch(line)
-        if not match:
-            raise ValueError(f'{path.name}:{number}: resctl-bench pins require literal '
-                             'double-quoted assignments, without shell expressions')
-        key, value = match.groups()
-        if key not in FIELDS:
-            raise ValueError(f'{path.name}:{number}: unknown RESCTL_BENCH_{key}')
-        if key in pins:
-            raise ValueError(f'{path.name}:{number}: duplicate RESCTL_BENCH_{key}')
-        pins[key] = value
+        st = source.lstat()
+        if not stat.S_ISREG(st.st_mode) or not 1 <= st.st_size <= 1024 * 1024:
+            raise ValueError(f'{source.name}: profile must be a bounded regular file')
+        seen: set[str] = set()
+        for number, line in enumerate(source.read_text(encoding='utf-8').splitlines(), 1):
+            line = line.strip()
+            if line.startswith('#') or 'RESCTL_BENCH_' not in line:
+                continue
+            match = ASSIGNMENT.fullmatch(line)
+            if not match:
+                raise ValueError(f'{source.name}:{number}: resctl-bench pins require literal '
+                                 'double-quoted assignments, without shell expressions')
+            key, value = match.groups()
+            if key not in FIELDS:
+                raise ValueError(f'{source.name}:{number}: unknown RESCTL_BENCH_{key}')
+            if key in seen:
+                raise ValueError(f'{source.name}:{number}: duplicate RESCTL_BENCH_{key}')
+            seen.add(key)
+            pins[key] = value
     missing = FIELDS.keys() - pins.keys()
     if missing:
         raise ValueError(f'{path.name}: missing ' + ', '.join('RESCTL_BENCH_' + k for k in sorted(missing)))
@@ -82,7 +90,7 @@ def arguments(pins: dict[str, str]) -> argparse.Namespace:
 
 
 def check(seed: Path = SEED) -> int:
-    profiles = sorted((seed / 'hosts/profiles').glob('*.env'))
+    profiles = sorted(path for path in (seed / 'hosts/profiles').glob('*.env') if path.name != 'shared-de.env')
     if not profiles:
         raise ValueError('no desktop profiles found for resctl-bench validation')
     # Load definitions only, never the helper's __main__ installation entry point.

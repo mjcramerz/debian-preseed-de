@@ -14,11 +14,18 @@ desktop_validate_obsidian_git_policy() {
   : "${OBSIDIAN_GIT_REPOSITORY_BRANCH:?desktop profile must define the Obsidian branch}"
   : "${OBSIDIAN_GIT_DIRECTORY:?desktop profile must define the Obsidian checkout}"
   : "${OBSIDIAN_GIT_SYNC_INTERVAL:?desktop profile must define the Obsidian sync interval}"
-  [ "$OBSIDIAN_GIT_REPOSITORY_URL" = git@gitlab.com:core-assets/docs/obsidian-md.git ] &&
-    [ "$OBSIDIAN_GIT_REPOSITORY_BRANCH" = mcr/main ] &&
-    [ "$OBSIDIAN_GIT_DIRECTORY" = Syncthing/obsidian-md ] &&
-    [ "$OBSIDIAN_GIT_SYNC_INTERVAL" = 1h ] ||
-    installer_fatal "unapproved Obsidian repository, branch, checkout or hourly sync policy"
+  case "$OBSIDIAN_GIT_REPOSITORY_URL" in
+    git@[A-Za-z0-9.-]*:*/[A-Za-z0-9._-]*) ;;
+    *) installer_fatal "Obsidian repository must use a valid Git SSH source" ;;
+  esac
+  case "$OBSIDIAN_GIT_REPOSITORY_BRANCH" in
+    ''|*[!A-Za-z0-9._/-]*|/*|*/|*//*|*..*)
+      installer_fatal "Obsidian branch contains unsupported syntax" ;;
+  esac
+  case "$OBSIDIAN_GIT_DIRECTORY" in
+    ''|/*|*..*|*//*|*/*/*|*[!A-Za-z0-9._/-]*)
+      installer_fatal "Obsidian checkout path contains unsupported syntax" ;;
+  esac
 }
 
 desktop_install_obsidian_repository() {
@@ -32,10 +39,18 @@ desktop_install_browser_repository() {
   : "${BROWSER_NETSCAPE_REPOSITORY_URL:?desktop profile must define the browser Git SSH repository}"
   : "${BROWSER_NETSCAPE_REPOSITORY_BRANCH:?desktop profile must define the browser branch}"
   : "${BROWSER_NETSCAPE_DIRECTORY:?desktop profile must define the browser checkout}"
-  [ "$BROWSER_NETSCAPE_REPOSITORY_URL" = git@gitlab.com:core-assets/helpers/netscape.git ] &&
-    [ "$BROWSER_NETSCAPE_REPOSITORY_BRANCH" = mcr/main ] &&
-    [ "$BROWSER_NETSCAPE_DIRECTORY" = Workspace/netscape ] ||
-    installer_fatal "unapproved browser repository, branch or checkout"
+  case "$BROWSER_NETSCAPE_REPOSITORY_URL" in
+    git@[A-Za-z0-9.-]*:*/[A-Za-z0-9._-]*) ;;
+    *) installer_fatal "browser repository must use a valid Git SSH source" ;;
+  esac
+  case "$BROWSER_NETSCAPE_REPOSITORY_BRANCH" in
+    ''|*[!A-Za-z0-9._/-]*|/*|*/|*//*|*..*)
+      installer_fatal "browser branch contains unsupported syntax" ;;
+  esac
+  case "$BROWSER_NETSCAPE_DIRECTORY" in
+    ''|/*|*..*|*//*|*/*/*|*[!A-Za-z0-9._/-]*)
+      installer_fatal "browser checkout path contains unsupported syntax" ;;
+  esac
   managed_git_ssh_target_action clone-netscape \
     --repository-url "$BROWSER_NETSCAPE_REPOSITORY_URL" \
     --repository-branch "$BROWSER_NETSCAPE_REPOSITORY_BRANCH" ||

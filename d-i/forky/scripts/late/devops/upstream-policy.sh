@@ -1,6 +1,21 @@
 #!/bin/sh
 # Sourced installer module; edit this file directly.
 
+devops_validate_configured_release_url() {
+  label=$1
+  url=$2
+  filename=$3
+  case "$filename" in
+    ''|*/*|*..*|*[!ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789._-]*)
+      devops_fatal "${label} release filename is malformed"
+      ;;
+  esac
+  case "$url" in
+    https://*/"$filename") ;;
+    *) devops_fatal "${label} URL does not end at its configured release filename" ;;
+  esac
+}
+
 devops_validate_upstream_tool_policy() {
   : "${DEVOPS_UPSTREAM_POLICY_SCHEMA:?DEVOPS_UPSTREAM_POLICY_SCHEMA must be set before DevOps provisioning}"
   : "${DEVOPS_UPSTREAM_ARCHITECTURE:?DEVOPS_UPSTREAM_ARCHITECTURE must be set before DevOps provisioning}"
@@ -16,6 +31,7 @@ devops_validate_upstream_tool_policy() {
   : "${DEVOPS_NODE_22_URL:?DEVOPS_NODE_22_URL must be set before DevOps provisioning}"
   : "${DEVOPS_NODE_22_SHA256:?DEVOPS_NODE_22_SHA256 must be set before DevOps provisioning}"
   : "${DEVOPS_NODE_22_MINIMUM_BYTES:?DEVOPS_NODE_22_MINIMUM_BYTES must be set before DevOps provisioning}"
+  : "${DEVOPS_NODE_22_MAXIMUM_BYTES:?DEVOPS_NODE_22_MAXIMUM_BYTES must be set before DevOps provisioning}"
   : "${DEVOPS_NODE_22_ARCHIVE_FILENAME:?DEVOPS_NODE_22_ARCHIVE_FILENAME must be set before DevOps provisioning}"
   : "${DEVOPS_NODE_22_ARCHIVE_ROOT:?DEVOPS_NODE_22_ARCHIVE_ROOT must be set before DevOps provisioning}"
   : "${DEVOPS_NODE_22_INSTALL_ROOT:?DEVOPS_NODE_22_INSTALL_ROOT must be set before DevOps provisioning}"
@@ -25,6 +41,7 @@ devops_validate_upstream_tool_policy() {
   : "${DEVOPS_NODE_24_URL:?DEVOPS_NODE_24_URL must be set before DevOps provisioning}"
   : "${DEVOPS_NODE_24_SHA256:?DEVOPS_NODE_24_SHA256 must be set before DevOps provisioning}"
   : "${DEVOPS_NODE_24_MINIMUM_BYTES:?DEVOPS_NODE_24_MINIMUM_BYTES must be set before DevOps provisioning}"
+  : "${DEVOPS_NODE_24_MAXIMUM_BYTES:?DEVOPS_NODE_24_MAXIMUM_BYTES must be set before DevOps provisioning}"
   : "${DEVOPS_NODE_24_ARCHIVE_FILENAME:?DEVOPS_NODE_24_ARCHIVE_FILENAME must be set before DevOps provisioning}"
   : "${DEVOPS_NODE_24_ARCHIVE_ROOT:?DEVOPS_NODE_24_ARCHIVE_ROOT must be set before DevOps provisioning}"
   : "${DEVOPS_NODE_24_INSTALL_ROOT:?DEVOPS_NODE_24_INSTALL_ROOT must be set before DevOps provisioning}"
@@ -34,6 +51,7 @@ devops_validate_upstream_tool_policy() {
   : "${DEVOPS_NODE_26_URL:?DEVOPS_NODE_26_URL must be set before DevOps provisioning}"
   : "${DEVOPS_NODE_26_SHA256:?DEVOPS_NODE_26_SHA256 must be set before DevOps provisioning}"
   : "${DEVOPS_NODE_26_MINIMUM_BYTES:?DEVOPS_NODE_26_MINIMUM_BYTES must be set before DevOps provisioning}"
+  : "${DEVOPS_NODE_26_MAXIMUM_BYTES:?DEVOPS_NODE_26_MAXIMUM_BYTES must be set before DevOps provisioning}"
   : "${DEVOPS_NODE_26_ARCHIVE_FILENAME:?DEVOPS_NODE_26_ARCHIVE_FILENAME must be set before DevOps provisioning}"
   : "${DEVOPS_NODE_26_ARCHIVE_ROOT:?DEVOPS_NODE_26_ARCHIVE_ROOT must be set before DevOps provisioning}"
   : "${DEVOPS_NODE_26_INSTALL_ROOT:?DEVOPS_NODE_26_INSTALL_ROOT must be set before DevOps provisioning}"
@@ -58,11 +76,13 @@ devops_validate_upstream_tool_policy() {
   : "${DEVOPS_YT_DLP_INSTALL_ROOT:?DEVOPS_YT_DLP_INSTALL_ROOT must be set before DevOps provisioning}"
   : "${DEVOPS_YT_DLP_BINARY_PATH:?DEVOPS_YT_DLP_BINARY_PATH must be set before DevOps provisioning}"
   : "${DEVOPS_YT_DLP_PAYLOAD_PATH:?DEVOPS_YT_DLP_PAYLOAD_PATH must be set before DevOps provisioning}"
+  : "${DEVOPS_YT_DLP_EJS_VERSION:?DEVOPS_YT_DLP_EJS_VERSION must be set before DevOps provisioning}"
 
   : "${DEVOPS_RUSTUP_VERSION:?DEVOPS_RUSTUP_VERSION must be set before DevOps provisioning}"
   : "${DEVOPS_RUSTUP_URL:?DEVOPS_RUSTUP_URL must be set before DevOps provisioning}"
   : "${DEVOPS_RUSTUP_SHA256:?DEVOPS_RUSTUP_SHA256 must be set before DevOps provisioning}"
   : "${DEVOPS_RUSTUP_MINIMUM_BYTES:?DEVOPS_RUSTUP_MINIMUM_BYTES must be set before DevOps provisioning}"
+  : "${DEVOPS_RUSTUP_MAXIMUM_BYTES:?DEVOPS_RUSTUP_MAXIMUM_BYTES must be set before DevOps provisioning}"
   : "${DEVOPS_RUSTUP_TARGET_TRIPLE:?DEVOPS_RUSTUP_TARGET_TRIPLE must be set before DevOps provisioning}"
   : "${DEVOPS_RUSTUP_INSTALL_ROOT:?DEVOPS_RUSTUP_INSTALL_ROOT must be set before DevOps provisioning}"
   : "${DEVOPS_RUSTUP_BINARY_PATH:?DEVOPS_RUSTUP_BINARY_PATH must be set before DevOps provisioning}"
@@ -221,70 +241,79 @@ devops_validate_upstream_tool_policy() {
     "$DEVOPS_NODE_26_SHA256" "$DEVOPS_NODE_26_MINIMUM_BYTES" \
     "$DEVOPS_NODE_26_ARCHIVE_FILENAME" "$DEVOPS_NODE_26_ARCHIVE_ROOT" \
     "$DEVOPS_NODE_26_INSTALL_ROOT" "$DEVOPS_NODE_26_BINARY_PATH"
+  for node_limit in \
+    "$DEVOPS_NODE_22_MINIMUM_BYTES" "$DEVOPS_NODE_22_MAXIMUM_BYTES" \
+    "$DEVOPS_NODE_24_MINIMUM_BYTES" "$DEVOPS_NODE_24_MAXIMUM_BYTES" \
+    "$DEVOPS_NODE_26_MINIMUM_BYTES" "$DEVOPS_NODE_26_MAXIMUM_BYTES"
+  do
+    devops_validate_positive_integer "Node release byte limit" "$node_limit"
+  done
+  [ "$DEVOPS_NODE_22_MAXIMUM_BYTES" -ge "$DEVOPS_NODE_22_MINIMUM_BYTES" ] ||
+    devops_fatal "DEVOPS_NODE_22_MAXIMUM_BYTES must not be smaller than its minimum"
+  [ "$DEVOPS_NODE_24_MAXIMUM_BYTES" -ge "$DEVOPS_NODE_24_MINIMUM_BYTES" ] ||
+    devops_fatal "DEVOPS_NODE_24_MAXIMUM_BYTES must not be smaller than its minimum"
+  [ "$DEVOPS_NODE_26_MAXIMUM_BYTES" -ge "$DEVOPS_NODE_26_MINIMUM_BYTES" ] ||
+    devops_fatal "DEVOPS_NODE_26_MAXIMUM_BYTES must not be smaller than its minimum"
 
   devops_validate_semantic_version "DEVOPS_DENO_VERSION" "$DEVOPS_DENO_VERSION"
   [ "$DEVOPS_DENO_ARCHITECTURE" = x86_64-unknown-linux-gnu ] ||
     devops_fatal "DEVOPS_DENO_ARCHITECTURE must remain x86_64-unknown-linux-gnu"
-  [ "$DEVOPS_DENO_ARCHIVE_FILENAME" = deno-x86_64-unknown-linux-gnu.zip ] ||
-    devops_fatal "DEVOPS_DENO_ARCHIVE_FILENAME must identify the official Linux AMD64 archive"
-  [ "$DEVOPS_DENO_URL" = "https://github.com/denoland/deno/releases/download/v${DEVOPS_DENO_VERSION}/${DEVOPS_DENO_ARCHIVE_FILENAME}" ] ||
-    devops_fatal "DEVOPS_DENO_URL must identify the versioned official Linux AMD64 release archive"
+  devops_validate_configured_release_url DEVOPS_DENO_URL "$DEVOPS_DENO_URL" "$DEVOPS_DENO_ARCHIVE_FILENAME"
   devops_validate_lower_hex "DEVOPS_DENO_SHA256" "$DEVOPS_DENO_SHA256" 64
   devops_validate_positive_integer "DEVOPS_DENO_MINIMUM_BYTES" "$DEVOPS_DENO_MINIMUM_BYTES"
   [ "$DEVOPS_DENO_ARCHIVE_FILES" = deno ] ||
     devops_fatal "DEVOPS_DENO_ARCHIVE_FILES must contain only deno"
-  [ "$DEVOPS_DENO_INSTALL_ROOT" = /usr/local/lib/deno ] ||
-    devops_fatal "DEVOPS_DENO_INSTALL_ROOT must remain /usr/local/lib/deno"
-  [ "$DEVOPS_DENO_BINARY_PATH" = "${DEVOPS_DENO_INSTALL_ROOT}/bin/deno" ] ||
-    devops_fatal "DEVOPS_DENO_BINARY_PATH must remain ${DEVOPS_DENO_INSTALL_ROOT}/bin/deno"
+  devops_validate_install_layout \
+    "DEVOPS_DENO" \
+    "$DEVOPS_DENO_INSTALL_ROOT" \
+    "$DEVOPS_DENO_BINARY_PATH"
 
   devops_validate_semantic_version "DEVOPS_YT_DLP_VERSION" "$DEVOPS_YT_DLP_VERSION"
   [ "$DEVOPS_YT_DLP_ARCHITECTURE" = linux-x86_64 ] ||
     devops_fatal "DEVOPS_YT_DLP_ARCHITECTURE must remain linux-x86_64"
-  [ "$DEVOPS_YT_DLP_ARCHIVE_FILENAME" = yt-dlp_linux ] ||
-    devops_fatal "DEVOPS_YT_DLP_ARCHIVE_FILENAME must identify the official Linux AMD64 standalone executable"
-  [ "$DEVOPS_YT_DLP_URL" = "https://github.com/yt-dlp/yt-dlp/releases/download/${DEVOPS_YT_DLP_VERSION}/${DEVOPS_YT_DLP_ARCHIVE_FILENAME}" ] ||
-    devops_fatal "DEVOPS_YT_DLP_URL must identify the versioned official Linux AMD64 standalone executable"
+  devops_validate_configured_release_url DEVOPS_YT_DLP_URL "$DEVOPS_YT_DLP_URL" "$DEVOPS_YT_DLP_ARCHIVE_FILENAME"
   devops_validate_lower_hex "DEVOPS_YT_DLP_SHA256" "$DEVOPS_YT_DLP_SHA256" 64
   devops_validate_positive_integer "DEVOPS_YT_DLP_MINIMUM_BYTES" "$DEVOPS_YT_DLP_MINIMUM_BYTES"
-  [ "$DEVOPS_YT_DLP_INSTALL_ROOT" = /usr/local/lib/yt-dlp ] ||
-    devops_fatal "DEVOPS_YT_DLP_INSTALL_ROOT must remain /usr/local/lib/yt-dlp"
-  [ "$DEVOPS_YT_DLP_BINARY_PATH" = "${DEVOPS_YT_DLP_INSTALL_ROOT}/bin/yt-dlp" ] ||
-    devops_fatal "DEVOPS_YT_DLP_BINARY_PATH must remain ${DEVOPS_YT_DLP_INSTALL_ROOT}/bin/yt-dlp"
-  [ "$DEVOPS_YT_DLP_PAYLOAD_PATH" = "${DEVOPS_YT_DLP_INSTALL_ROOT}/libexec/yt-dlp" ] ||
-    devops_fatal "DEVOPS_YT_DLP_PAYLOAD_PATH must remain ${DEVOPS_YT_DLP_INSTALL_ROOT}/libexec/yt-dlp"
+  devops_validate_install_layout \
+    "DEVOPS_YT_DLP" \
+    "$DEVOPS_YT_DLP_INSTALL_ROOT" \
+    "$DEVOPS_YT_DLP_BINARY_PATH"
+  devops_validate_abs_path "DEVOPS_YT_DLP_PAYLOAD_PATH" "$DEVOPS_YT_DLP_PAYLOAD_PATH"
+  case "$DEVOPS_YT_DLP_PAYLOAD_PATH" in
+    "$DEVOPS_YT_DLP_INSTALL_ROOT"/*) ;;
+    *) devops_fatal "DEVOPS_YT_DLP_PAYLOAD_PATH must be below DEVOPS_YT_DLP_INSTALL_ROOT" ;;
+  esac
 
   devops_validate_semantic_version "DEVOPS_RUSTUP_VERSION" "$DEVOPS_RUSTUP_VERSION"
   [ "$DEVOPS_RUSTUP_TARGET_TRIPLE" = x86_64-unknown-linux-gnu ] ||
     devops_fatal "DEVOPS_RUSTUP_TARGET_TRIPLE must remain x86_64-unknown-linux-gnu"
-  [ "$DEVOPS_RUSTUP_URL" = "https://static.rust-lang.org/rustup/archive/${DEVOPS_RUSTUP_VERSION}/${DEVOPS_RUSTUP_TARGET_TRIPLE}/rustup-init" ] ||
-    devops_fatal "DEVOPS_RUSTUP_URL must identify the versioned official Linux AMD64 bootstrap"
+  rustup_archive_filename=${DEVOPS_RUSTUP_URL##*/}
+  devops_validate_configured_release_url \
+    DEVOPS_RUSTUP_URL \
+    "$DEVOPS_RUSTUP_URL" \
+    "$rustup_archive_filename"
   devops_validate_lower_hex "DEVOPS_RUSTUP_SHA256" "$DEVOPS_RUSTUP_SHA256" 64
   devops_validate_positive_integer "DEVOPS_RUSTUP_MINIMUM_BYTES" "$DEVOPS_RUSTUP_MINIMUM_BYTES"
-  [ "$DEVOPS_RUSTUP_INSTALL_ROOT" = /usr/local/lib/rustup ] ||
-    devops_fatal "DEVOPS_RUSTUP_INSTALL_ROOT must remain /usr/local/lib/rustup"
-  [ "$DEVOPS_RUSTUP_BINARY_PATH" = "${DEVOPS_RUSTUP_INSTALL_ROOT}/bin/rustup-init" ] ||
-    devops_fatal "DEVOPS_RUSTUP_BINARY_PATH must remain ${DEVOPS_RUSTUP_INSTALL_ROOT}/bin/rustup-init"
+  devops_validate_positive_integer "DEVOPS_RUSTUP_MAXIMUM_BYTES" "$DEVOPS_RUSTUP_MAXIMUM_BYTES"
+  [ "$DEVOPS_RUSTUP_MAXIMUM_BYTES" -ge "$DEVOPS_RUSTUP_MINIMUM_BYTES" ] ||
+    devops_fatal "DEVOPS_RUSTUP_MAXIMUM_BYTES must not be smaller than its minimum"
+  devops_validate_install_layout \
+    "DEVOPS_RUSTUP" \
+    "$DEVOPS_RUSTUP_INSTALL_ROOT" \
+    "$DEVOPS_RUSTUP_BINARY_PATH"
   devops_validate_semantic_version "DEVOPS_CARGO_BINSTALL_VERSION" "$DEVOPS_CARGO_BINSTALL_VERSION"
   [ "$DEVOPS_CARGO_BINSTALL_ARCHITECTURE" = x86_64-unknown-linux-musl ] ||
     devops_fatal "DEVOPS_CARGO_BINSTALL_ARCHITECTURE must remain x86_64-unknown-linux-musl"
-  [ "$DEVOPS_CARGO_BINSTALL_ARCHIVE_FILENAME" = cargo-binstall-x86_64-unknown-linux-musl.tgz ] ||
-    devops_fatal "DEVOPS_CARGO_BINSTALL_ARCHIVE_FILENAME must identify the cargo-binstall Linux musl x86-64 archive"
-  [ "$DEVOPS_CARGO_BINSTALL_URL" = "https://github.com/cargo-bins/cargo-binstall/releases/download/v${DEVOPS_CARGO_BINSTALL_VERSION}/${DEVOPS_CARGO_BINSTALL_ARCHIVE_FILENAME}" ] ||
-    devops_fatal "DEVOPS_CARGO_BINSTALL_URL must identify the versioned official cargo-binstall archive"
+  devops_validate_configured_release_url DEVOPS_CARGO_BINSTALL_URL "$DEVOPS_CARGO_BINSTALL_URL" "$DEVOPS_CARGO_BINSTALL_ARCHIVE_FILENAME"
   devops_validate_lower_hex "DEVOPS_CARGO_BINSTALL_SHA256" "$DEVOPS_CARGO_BINSTALL_SHA256" 64
   devops_validate_positive_integer "DEVOPS_CARGO_BINSTALL_MINIMUM_BYTES" "$DEVOPS_CARGO_BINSTALL_MINIMUM_BYTES"
   [ "$DEVOPS_CARGO_BINSTALL_ARCHIVE_FILES" = cargo-binstall ] ||
     devops_fatal "DEVOPS_CARGO_BINSTALL_ARCHIVE_FILES must contain only cargo-binstall"
   devops_validate_source_build_flag "DEVOPS_DOTSLASH_SOURCE_BUILD" "$DEVOPS_DOTSLASH_SOURCE_BUILD"
   devops_validate_semantic_version "DEVOPS_DOTSLASH_VERSION" "$DEVOPS_DOTSLASH_VERSION"
-  [ "$DEVOPS_DOTSLASH_REPOSITORY_URL" = https://github.com/facebook/dotslash ] ||
-    devops_fatal "DEVOPS_DOTSLASH_REPOSITORY_URL must identify the official repository"
+  case "$DEVOPS_DOTSLASH_REPOSITORY_URL" in https://*) ;; *) devops_fatal "DEVOPS_DOTSLASH_REPOSITORY_URL must be HTTPS" ;; esac
   devops_validate_lower_hex "DEVOPS_DOTSLASH_COMMIT" "$DEVOPS_DOTSLASH_COMMIT" 40
-  [ "$DEVOPS_DOTSLASH_ARCHIVE_FILENAME" = "dotslash-linux-musl.x86_64.v${DEVOPS_DOTSLASH_VERSION}.tar.gz" ] ||
-    devops_fatal "DEVOPS_DOTSLASH_ARCHIVE_FILENAME does not match DEVOPS_DOTSLASH_VERSION"
-  [ "$DEVOPS_DOTSLASH_URL" = "https://github.com/facebook/dotslash/releases/download/v${DEVOPS_DOTSLASH_VERSION}/${DEVOPS_DOTSLASH_ARCHIVE_FILENAME}" ] ||
-    devops_fatal "DEVOPS_DOTSLASH_URL must identify the official Linux musl x86-64 release archive"
+  devops_validate_configured_release_url DEVOPS_DOTSLASH_URL "$DEVOPS_DOTSLASH_URL" "$DEVOPS_DOTSLASH_ARCHIVE_FILENAME"
   devops_validate_lower_hex "DEVOPS_DOTSLASH_SHA256" "$DEVOPS_DOTSLASH_SHA256" 64
   devops_validate_positive_integer "DEVOPS_DOTSLASH_MINIMUM_BYTES" "$DEVOPS_DOTSLASH_MINIMUM_BYTES"
   [ "$DEVOPS_DOTSLASH_ARCHITECTURE" = linux-musl.x86_64 ] ||
@@ -293,12 +322,7 @@ devops_validate_upstream_tool_policy() {
     devops_fatal "DEVOPS_DOTSLASH_ARCHIVE_FILES must contain only dotslash"
   devops_validate_source_build_flag "DEVOPS_UV_SOURCE_BUILD" "$DEVOPS_UV_SOURCE_BUILD"
   devops_validate_semantic_version "DEVOPS_UV_VERSION" "$DEVOPS_UV_VERSION"
-  [ "$DEVOPS_UV_ARCHIVE_FILENAME" = uv-x86_64-unknown-linux-gnu.tar.gz ] ||
-    devops_fatal "DEVOPS_UV_ARCHIVE_FILENAME must identify the official Linux GNU x86-64 release archive"
-  [ "$DEVOPS_UV_ARCHIVE_ROOT" = uv-x86_64-unknown-linux-gnu ] ||
-    devops_fatal "DEVOPS_UV_ARCHIVE_ROOT must identify the official Linux GNU x86-64 release root"
-  [ "$DEVOPS_UV_URL" = "https://github.com/astral-sh/uv/releases/download/${DEVOPS_UV_VERSION}/${DEVOPS_UV_ARCHIVE_FILENAME}" ] ||
-    devops_fatal "DEVOPS_UV_URL must identify the versioned official Linux GNU x86-64 release archive"
+  devops_validate_configured_release_url DEVOPS_UV_URL "$DEVOPS_UV_URL" "$DEVOPS_UV_ARCHIVE_FILENAME"
   devops_validate_lower_hex "DEVOPS_UV_SHA256" "$DEVOPS_UV_SHA256" 64
   devops_validate_positive_integer "DEVOPS_UV_MINIMUM_BYTES" "$DEVOPS_UV_MINIMUM_BYTES"
   [ "$DEVOPS_UV_ARCHITECTURE" = x86_64-unknown-linux-gnu ] ||
@@ -307,11 +331,9 @@ devops_validate_upstream_tool_policy() {
     devops_fatal "DEVOPS_UV_ARCHIVE_FILES must contain uv and uvx"
 
   devops_validate_semantic_version "DEVOPS_ANSIBLE_CORE_VERSION" "$DEVOPS_ANSIBLE_CORE_VERSION"
-  [ "$DEVOPS_ANSIBLE_CORE_ARCHIVE_FILENAME" = "ansible_core-${DEVOPS_ANSIBLE_CORE_VERSION}-py3-none-any.whl" ] ||
-    devops_fatal "DEVOPS_ANSIBLE_CORE_ARCHIVE_FILENAME does not match DEVOPS_ANSIBLE_CORE_VERSION"
   case "$DEVOPS_ANSIBLE_CORE_URL" in
-    "https://files.pythonhosted.org/packages/"*"/${DEVOPS_ANSIBLE_CORE_ARCHIVE_FILENAME}") ;;
-    *) devops_fatal "DEVOPS_ANSIBLE_CORE_URL must identify the official PyPI wheel" ;;
+    https://*/"${DEVOPS_ANSIBLE_CORE_ARCHIVE_FILENAME}") ;;
+    *) devops_fatal "DEVOPS_ANSIBLE_CORE_URL must identify an HTTPS wheel" ;;
   esac
   case "$DEVOPS_ANSIBLE_CORE_URL" in
     *..*) devops_fatal "DEVOPS_ANSIBLE_CORE_URL must be normalized" ;;
@@ -324,31 +346,25 @@ devops_validate_upstream_tool_policy() {
     devops_fatal "DEVOPS_ANSIBLE_CORE_PACKAGE_ROOTS must remain ansible ansible_test"
   [ "$DEVOPS_ANSIBLE_CORE_DIST_INFO_ROOT" = "ansible_core-${DEVOPS_ANSIBLE_CORE_VERSION}.dist-info" ] ||
     devops_fatal "DEVOPS_ANSIBLE_CORE_DIST_INFO_ROOT does not match DEVOPS_ANSIBLE_CORE_VERSION"
-  [ "$DEVOPS_ANSIBLE_CORE_INSTALL_ROOT" = /usr/local/lib/ansible ] ||
-    devops_fatal "DEVOPS_ANSIBLE_CORE_INSTALL_ROOT must remain /usr/local/lib/ansible"
-  [ "$DEVOPS_ANSIBLE_CORE_BINARY_PATH" = "${DEVOPS_ANSIBLE_CORE_INSTALL_ROOT}/bin/ansible" ] ||
-    devops_fatal "DEVOPS_ANSIBLE_CORE_BINARY_PATH must remain ${DEVOPS_ANSIBLE_CORE_INSTALL_ROOT}/bin/ansible"
+  devops_validate_install_layout \
+    "DEVOPS_ANSIBLE_CORE" \
+    "$DEVOPS_ANSIBLE_CORE_INSTALL_ROOT" \
+    "$DEVOPS_ANSIBLE_CORE_BINARY_PATH"
 
   devops_validate_semantic_version "DEVOPS_OPENTOFU_VERSION" "$DEVOPS_OPENTOFU_VERSION"
-  [ "$DEVOPS_OPENTOFU_ARCHIVE_FILENAME" = "tofu_${DEVOPS_OPENTOFU_VERSION}_linux_amd64.zip" ] ||
-    devops_fatal "DEVOPS_OPENTOFU_ARCHIVE_FILENAME does not match DEVOPS_OPENTOFU_VERSION"
-  [ "$DEVOPS_OPENTOFU_URL" = "https://github.com/opentofu/opentofu/releases/download/v${DEVOPS_OPENTOFU_VERSION}/${DEVOPS_OPENTOFU_ARCHIVE_FILENAME}" ] ||
-    devops_fatal "DEVOPS_OPENTOFU_URL must identify the official Linux AMD64 release archive"
+  devops_validate_configured_release_url DEVOPS_OPENTOFU_URL "$DEVOPS_OPENTOFU_URL" "$DEVOPS_OPENTOFU_ARCHIVE_FILENAME"
   devops_validate_lower_hex "DEVOPS_OPENTOFU_SHA256" "$DEVOPS_OPENTOFU_SHA256" 64
   devops_validate_positive_integer "DEVOPS_OPENTOFU_MINIMUM_BYTES" "$DEVOPS_OPENTOFU_MINIMUM_BYTES"
   [ "$DEVOPS_OPENTOFU_ARCHITECTURE" = linux-amd64 ] ||
     devops_fatal "DEVOPS_OPENTOFU_ARCHITECTURE must remain linux-amd64"
   devops_validate_archive_file_list "DEVOPS_OPENTOFU_ARCHIVE_FILES" "$DEVOPS_OPENTOFU_ARCHIVE_FILES"
-  [ "$DEVOPS_OPENTOFU_INSTALL_ROOT" = /usr/local/lib/opentufo ] ||
-    devops_fatal "DEVOPS_OPENTOFU_INSTALL_ROOT must remain /usr/local/lib/opentufo"
-  [ "$DEVOPS_OPENTOFU_BINARY_PATH" = "${DEVOPS_OPENTOFU_INSTALL_ROOT}/bin/tofu" ] ||
-    devops_fatal "DEVOPS_OPENTOFU_BINARY_PATH must remain ${DEVOPS_OPENTOFU_INSTALL_ROOT}/bin/tofu"
+  devops_validate_install_layout \
+    "DEVOPS_OPENTOFU" \
+    "$DEVOPS_OPENTOFU_INSTALL_ROOT" \
+    "$DEVOPS_OPENTOFU_BINARY_PATH"
 
   devops_validate_semantic_version "DEVOPS_TERRAFORM_VERSION" "$DEVOPS_TERRAFORM_VERSION"
-  [ "$DEVOPS_TERRAFORM_ARCHIVE_FILENAME" = "terraform_${DEVOPS_TERRAFORM_VERSION}_linux_amd64.zip" ] ||
-    devops_fatal "DEVOPS_TERRAFORM_ARCHIVE_FILENAME does not match DEVOPS_TERRAFORM_VERSION"
-  [ "$DEVOPS_TERRAFORM_URL" = "https://releases.hashicorp.com/terraform/${DEVOPS_TERRAFORM_VERSION}/${DEVOPS_TERRAFORM_ARCHIVE_FILENAME}" ] ||
-    devops_fatal "DEVOPS_TERRAFORM_URL must identify the official Linux AMD64 release archive"
+  devops_validate_configured_release_url DEVOPS_TERRAFORM_URL "$DEVOPS_TERRAFORM_URL" "$DEVOPS_TERRAFORM_ARCHIVE_FILENAME"
   devops_validate_lower_hex "DEVOPS_TERRAFORM_SHA256" "$DEVOPS_TERRAFORM_SHA256" 64
   devops_validate_positive_integer "DEVOPS_TERRAFORM_MINIMUM_BYTES" "$DEVOPS_TERRAFORM_MINIMUM_BYTES"
   [ "$DEVOPS_TERRAFORM_ARCHITECTURE" = linux-amd64 ] ||
@@ -356,16 +372,13 @@ devops_validate_upstream_tool_policy() {
   devops_validate_archive_file_list \
     "DEVOPS_TERRAFORM_ARCHIVE_FILES" \
     "$DEVOPS_TERRAFORM_ARCHIVE_FILES"
-  [ "$DEVOPS_TERRAFORM_INSTALL_ROOT" = /usr/local/lib/hashicorp/terraform ] ||
-    devops_fatal "DEVOPS_TERRAFORM_INSTALL_ROOT must remain /usr/local/lib/hashicorp/terraform"
-  [ "$DEVOPS_TERRAFORM_BINARY_PATH" = "${DEVOPS_TERRAFORM_INSTALL_ROOT}/bin/terraform" ] ||
-    devops_fatal "DEVOPS_TERRAFORM_BINARY_PATH must remain ${DEVOPS_TERRAFORM_INSTALL_ROOT}/bin/terraform"
+  devops_validate_install_layout \
+    "DEVOPS_TERRAFORM" \
+    "$DEVOPS_TERRAFORM_INSTALL_ROOT" \
+    "$DEVOPS_TERRAFORM_BINARY_PATH"
 
   devops_validate_semantic_version "DEVOPS_PACKER_VERSION" "$DEVOPS_PACKER_VERSION"
-  [ "$DEVOPS_PACKER_ARCHIVE_FILENAME" = "packer_${DEVOPS_PACKER_VERSION}_linux_amd64.zip" ] ||
-    devops_fatal "DEVOPS_PACKER_ARCHIVE_FILENAME does not match DEVOPS_PACKER_VERSION"
-  [ "$DEVOPS_PACKER_URL" = "https://releases.hashicorp.com/packer/${DEVOPS_PACKER_VERSION}/${DEVOPS_PACKER_ARCHIVE_FILENAME}" ] ||
-    devops_fatal "DEVOPS_PACKER_URL must identify the official Linux AMD64 release archive"
+  devops_validate_configured_release_url DEVOPS_PACKER_URL "$DEVOPS_PACKER_URL" "$DEVOPS_PACKER_ARCHIVE_FILENAME"
   devops_validate_lower_hex "DEVOPS_PACKER_SHA256" "$DEVOPS_PACKER_SHA256" 64
   devops_validate_positive_integer "DEVOPS_PACKER_MINIMUM_BYTES" "$DEVOPS_PACKER_MINIMUM_BYTES"
   [ "$DEVOPS_PACKER_ARCHITECTURE" = linux-amd64 ] ||
@@ -373,16 +386,13 @@ devops_validate_upstream_tool_policy() {
   devops_validate_archive_file_list \
     "DEVOPS_PACKER_ARCHIVE_FILES" \
     "$DEVOPS_PACKER_ARCHIVE_FILES"
-  [ "$DEVOPS_PACKER_INSTALL_ROOT" = /usr/local/lib/hashicorp/packer ] ||
-    devops_fatal "DEVOPS_PACKER_INSTALL_ROOT must remain /usr/local/lib/hashicorp/packer"
-  [ "$DEVOPS_PACKER_BINARY_PATH" = "${DEVOPS_PACKER_INSTALL_ROOT}/bin/packer" ] ||
-    devops_fatal "DEVOPS_PACKER_BINARY_PATH must remain ${DEVOPS_PACKER_INSTALL_ROOT}/bin/packer"
+  devops_validate_install_layout \
+    "DEVOPS_PACKER" \
+    "$DEVOPS_PACKER_INSTALL_ROOT" \
+    "$DEVOPS_PACKER_BINARY_PATH"
 
   devops_validate_semantic_version "DEVOPS_WRANGLER_VERSION" "$DEVOPS_WRANGLER_VERSION"
-  [ "$DEVOPS_WRANGLER_ARCHIVE_FILENAME" = "wrangler-${DEVOPS_WRANGLER_VERSION}.tgz" ] ||
-    devops_fatal "DEVOPS_WRANGLER_ARCHIVE_FILENAME does not match DEVOPS_WRANGLER_VERSION"
-  [ "$DEVOPS_WRANGLER_URL" = "https://registry.npmjs.org/wrangler/-/${DEVOPS_WRANGLER_ARCHIVE_FILENAME}" ] ||
-    devops_fatal "DEVOPS_WRANGLER_URL must identify the official npm tarball"
+  devops_validate_configured_release_url DEVOPS_WRANGLER_URL "$DEVOPS_WRANGLER_URL" "$DEVOPS_WRANGLER_ARCHIVE_FILENAME"
   devops_validate_lower_hex "DEVOPS_WRANGLER_SHA512" "$DEVOPS_WRANGLER_SHA512" 128
   if ! printf '%s\n' "$DEVOPS_WRANGLER_NPM_INTEGRITY" |
     LC_ALL=C grep -Eq '^sha512-[A-Za-z0-9+/]{86}==$'
@@ -403,36 +413,28 @@ devops_validate_upstream_tool_policy() {
   fi
   [ "$DEVOPS_WRANGLER_NODE_ROOT" = "$DEVOPS_NODE_26_INSTALL_ROOT" ] ||
     devops_fatal "DEVOPS_WRANGLER_NODE_ROOT must match DEVOPS_NODE_26_INSTALL_ROOT"
-  [ "$DEVOPS_WRANGLER_NPM_REGISTRY_URL" = https://registry.npmjs.org/ ] ||
-    devops_fatal "DEVOPS_WRANGLER_NPM_REGISTRY_URL must identify the official npm registry origin"
-  [ "$DEVOPS_WRANGLER_INSTALL_ROOT" = /usr/local/lib/wrangler ] ||
-    devops_fatal "DEVOPS_WRANGLER_INSTALL_ROOT must remain /usr/local/lib/wrangler"
-  [ "$DEVOPS_WRANGLER_BINARY_PATH" = "${DEVOPS_WRANGLER_INSTALL_ROOT}/node_modules/.bin/wrangler" ] ||
-    devops_fatal "DEVOPS_WRANGLER_BINARY_PATH must remain ${DEVOPS_WRANGLER_INSTALL_ROOT}/node_modules/.bin/wrangler"
+  case "$DEVOPS_WRANGLER_NPM_REGISTRY_URL" in https://*/) ;; *) devops_fatal "DEVOPS_WRANGLER_NPM_REGISTRY_URL must be HTTPS" ;; esac
+  devops_validate_install_layout \
+    "DEVOPS_WRANGLER" \
+    "$DEVOPS_WRANGLER_INSTALL_ROOT" \
+    "$DEVOPS_WRANGLER_BINARY_PATH"
 
   devops_validate_semantic_version "DEVOPS_APTLY_RELEASE_VERSION" "$DEVOPS_APTLY_RELEASE_VERSION"
-  [ "$DEVOPS_APTLY_RELEASE_ARCHIVE_FILENAME" = "aptly_${DEVOPS_APTLY_RELEASE_VERSION}_linux_amd64.zip" ] ||
-    devops_fatal "DEVOPS_APTLY_RELEASE_ARCHIVE_FILENAME does not match DEVOPS_APTLY_RELEASE_VERSION"
-  [ "$DEVOPS_APTLY_RELEASE_ARCHIVE_ROOT" = "aptly_${DEVOPS_APTLY_RELEASE_VERSION}_linux_amd64" ] ||
-    devops_fatal "DEVOPS_APTLY_RELEASE_ARCHIVE_ROOT does not match DEVOPS_APTLY_RELEASE_VERSION"
-  [ "$DEVOPS_APTLY_RELEASE_URL" = "https://github.com/aptly-dev/aptly/releases/download/v${DEVOPS_APTLY_RELEASE_VERSION}/${DEVOPS_APTLY_RELEASE_ARCHIVE_FILENAME}" ] ||
-    devops_fatal "DEVOPS_APTLY_RELEASE_URL must identify the official Linux AMD64 release archive"
+  devops_validate_configured_release_url DEVOPS_APTLY_RELEASE_URL "$DEVOPS_APTLY_RELEASE_URL" "$DEVOPS_APTLY_RELEASE_ARCHIVE_FILENAME"
   devops_validate_lower_hex "DEVOPS_APTLY_RELEASE_SHA256" "$DEVOPS_APTLY_RELEASE_SHA256" 64
   devops_validate_positive_integer "DEVOPS_APTLY_RELEASE_MINIMUM_BYTES" "$DEVOPS_APTLY_RELEASE_MINIMUM_BYTES"
   [ "$DEVOPS_APTLY_RELEASE_ARCHITECTURE" = linux-amd64 ] ||
     devops_fatal "DEVOPS_APTLY_RELEASE_ARCHITECTURE must remain linux-amd64"
   devops_validate_archive_file_list "DEVOPS_APTLY_RELEASE_ARCHIVE_FILES" "$DEVOPS_APTLY_RELEASE_ARCHIVE_FILES"
-  [ "$DEVOPS_APTLY_INSTALL_ROOT" = /usr/local/lib/aptly ] ||
-    devops_fatal "DEVOPS_APTLY_INSTALL_ROOT must remain /usr/local/lib/aptly"
-  [ "$DEVOPS_APTLY_BINARY_PATH" = "${DEVOPS_APTLY_INSTALL_ROOT}/bin/aptly" ] ||
-    devops_fatal "DEVOPS_APTLY_BINARY_PATH must remain ${DEVOPS_APTLY_INSTALL_ROOT}/bin/aptly"
+  devops_validate_install_layout \
+    "DEVOPS_APTLY" \
+    "$DEVOPS_APTLY_INSTALL_ROOT" \
+    "$DEVOPS_APTLY_BINARY_PATH"
 
   devops_validate_semantic_version "DEVOPS_OSC_RELEASE_VERSION" "$DEVOPS_OSC_RELEASE_VERSION"
-  [ "$DEVOPS_OSC_RELEASE_ARCHIVE_FILENAME" = "osc-${DEVOPS_OSC_RELEASE_VERSION}-py3-none-any.whl" ] ||
-    devops_fatal "DEVOPS_OSC_RELEASE_ARCHIVE_FILENAME does not match DEVOPS_OSC_RELEASE_VERSION"
   case "$DEVOPS_OSC_RELEASE_URL" in
-    "https://files.pythonhosted.org/packages/"*"/${DEVOPS_OSC_RELEASE_ARCHIVE_FILENAME}") ;;
-    *) devops_fatal "DEVOPS_OSC_RELEASE_URL must identify the official PyPI wheel" ;;
+    https://*/"${DEVOPS_OSC_RELEASE_ARCHIVE_FILENAME}") ;;
+    *) devops_fatal "DEVOPS_OSC_RELEASE_URL must identify an HTTPS wheel" ;;
   esac
   case "$DEVOPS_OSC_RELEASE_URL" in
     *..*) devops_fatal "DEVOPS_OSC_RELEASE_URL must be normalized" ;;
@@ -445,28 +447,23 @@ devops_validate_upstream_tool_policy() {
     devops_fatal "DEVOPS_OSC_RELEASE_PACKAGE_ROOT must remain osc"
   [ "$DEVOPS_OSC_RELEASE_DIST_INFO_ROOT" = "osc-${DEVOPS_OSC_RELEASE_VERSION}.dist-info" ] ||
     devops_fatal "DEVOPS_OSC_RELEASE_DIST_INFO_ROOT does not match DEVOPS_OSC_RELEASE_VERSION"
-  [ "$DEVOPS_OSC_INSTALL_ROOT" = /usr/local/lib/osc ] ||
-    devops_fatal "DEVOPS_OSC_INSTALL_ROOT must remain /usr/local/lib/osc"
-  [ "$DEVOPS_OSC_BINARY_PATH" = "${DEVOPS_OSC_INSTALL_ROOT}/bin/osc" ] ||
-    devops_fatal "DEVOPS_OSC_BINARY_PATH must remain ${DEVOPS_OSC_INSTALL_ROOT}/bin/osc"
+  devops_validate_install_layout \
+    "DEVOPS_OSC" \
+    "$DEVOPS_OSC_INSTALL_ROOT" \
+    "$DEVOPS_OSC_BINARY_PATH"
 
   if ! printf '%s\n' "$DEVOPS_OBS_BUILD_TAG" | LC_ALL=C grep -Eq '^[0-9]{8}$'; then
     devops_fatal "DEVOPS_OBS_BUILD_TAG must be an eight-digit upstream tag"
   fi
   devops_validate_lower_hex "DEVOPS_OBS_BUILD_COMMIT" "$DEVOPS_OBS_BUILD_COMMIT" 40
-  [ "$DEVOPS_OBS_BUILD_URL" = "https://codeload.github.com/openSUSE/obs-build/tar.gz/${DEVOPS_OBS_BUILD_COMMIT}" ] ||
-    devops_fatal "DEVOPS_OBS_BUILD_URL must identify the official commit archive"
-  [ "$DEVOPS_OBS_BUILD_ARCHIVE_FILENAME" = "obs-build-${DEVOPS_OBS_BUILD_COMMIT}.tar.gz" ] ||
-    devops_fatal "DEVOPS_OBS_BUILD_ARCHIVE_FILENAME does not match DEVOPS_OBS_BUILD_COMMIT"
-  [ "$DEVOPS_OBS_BUILD_ARCHIVE_ROOT" = "obs-build-${DEVOPS_OBS_BUILD_COMMIT}" ] ||
-    devops_fatal "DEVOPS_OBS_BUILD_ARCHIVE_ROOT does not match DEVOPS_OBS_BUILD_COMMIT"
+  case "$DEVOPS_OBS_BUILD_URL" in https://*/"${DEVOPS_OBS_BUILD_COMMIT}") ;; *) devops_fatal "DEVOPS_OBS_BUILD_URL must end at the configured commit" ;; esac
   devops_validate_lower_hex "DEVOPS_OBS_BUILD_SHA256" "$DEVOPS_OBS_BUILD_SHA256" 64
   devops_validate_positive_integer "DEVOPS_OBS_BUILD_MINIMUM_BYTES" "$DEVOPS_OBS_BUILD_MINIMUM_BYTES"
   [ "$DEVOPS_OBS_BUILD_ARCHITECTURE" = source-any ] ||
     devops_fatal "DEVOPS_OBS_BUILD_ARCHITECTURE must remain source-any"
-  [ "$DEVOPS_OBS_BUILD_INSTALL_ROOT" = /usr/local/lib/obs-build ] ||
-    devops_fatal "DEVOPS_OBS_BUILD_INSTALL_ROOT must remain /usr/local/lib/obs-build"
-  [ "$DEVOPS_OBS_BUILD_BINARY_PATH" = "${DEVOPS_OBS_BUILD_INSTALL_ROOT}/bin/build" ] ||
-    devops_fatal "DEVOPS_OBS_BUILD_BINARY_PATH must remain ${DEVOPS_OBS_BUILD_INSTALL_ROOT}/bin/build"
+  devops_validate_install_layout \
+    "DEVOPS_OBS_BUILD" \
+    "$DEVOPS_OBS_BUILD_INSTALL_ROOT" \
+    "$DEVOPS_OBS_BUILD_BINARY_PATH"
   devops_validate_archive_file_list "DEVOPS_OBS_BUILD_ENTRYPOINTS" "$DEVOPS_OBS_BUILD_ENTRYPOINTS"
 }

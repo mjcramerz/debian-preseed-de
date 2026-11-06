@@ -20,6 +20,15 @@ use APTRepoLocal::Servicing::Process;
 has http  => (is => 'ro', required => 1);
 has event => (is => 'ro', required => 1);
 has state => (is => 'ro', required => 1);
+has release_policy => (is => 'ro', required => 1);
+
+sub _limit {
+    my ($self, $name) = @_;
+    my $value = $self->release_policy()->{postman}{$name};
+    defined $value && !ref $value && $value =~ /\A[1-9][0-9]*\z/
+        or die "Postman release policy limit is unavailable: $name\n";
+    return 0 + $value;
+}
 
 sub _capture_limited {
     my ($self, $limit, @command) = @_;
@@ -67,7 +76,7 @@ sub _entries {
         or die "Postman archive listing is malformed\n";
     my @entries = split /\n/, $listing, -1;
     pop @entries;
-    @entries && @entries <= 5000
+    @entries && @entries <= $self->_limit('maximum_members')
         or die "Postman archive has an unsafe member count\n";
     my %seen;
     for my $entry (@entries) {
@@ -98,7 +107,7 @@ sub _entries {
 sub _release {
     my ($self, $archive) = @_;
     my $json = $self->_capture_limited(
-        1_048_576,
+        $self->_limit('metadata_maximum_bytes'),
         '/usr/bin/tar',
         '--extract',
         '--gzip',
@@ -121,7 +130,7 @@ sub validate {
     -f $archive && !-l $archive
         or die "Postman archive is not a regular file\n";
     my $size = -s $archive;
-    defined $size && $size >= 1_048_576 && $size <= 314_572_800
+    defined $size && $size >= $self->_limit('minimum_bytes') && $size <= $self->_limit('maximum_bytes')
         or die "Postman archive size is outside approved bounds\n";
     $self->_entries($archive);
     return {
@@ -168,7 +177,7 @@ sub _normalize_tree {
             wanted   => sub {
                 return if $File::Find::name eq $root;
                 $count++;
-                $count <= 5000
+                $count <= $self->_limit('maximum_members')
                     or die "Postman payload exceeds file-count bounds\n";
                 if (-l $_) {
                     $symlink_count++;
@@ -187,7 +196,7 @@ sub _normalize_tree {
                 -f _
                     or die "Postman payload contains an unsupported filesystem object\n";
                 $bytes += -s _;
-                $bytes <= 1_073_741_824
+                $bytes <= $self->_limit('maximum_extracted_bytes')
                     or die "Postman payload exceeds size bounds\n";
                 chown 0, 0, $File::Find::name
                     or die "failed to set Postman file ownership: $!\n";
@@ -226,10 +235,10 @@ sub fetch {
     eval {
         $self->http()->download(
             label => 'Postman',
-            url => 'https://dl.pstmn.io/download/latest/linux64',
+            url => $self->release_policy()->{service_urls}{postman},
             destination => $archive,
-            minimum => 1_048_576,
-            maximum => 314_572_800,
+            minimum => $self->_limit('minimum_bytes'),
+            maximum => $self->_limit('maximum_bytes'),
             content_policy => 'artifact',
         );
         1;

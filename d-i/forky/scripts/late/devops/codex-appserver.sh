@@ -1,4 +1,5 @@
 #!/bin/sh
+# shellcheck disable=SC2154
 # Sourced installer module; edit this file directly.
 
 devops_stage_codex_app_server() {
@@ -58,11 +59,28 @@ devops_stage_codex_app_server() {
     0600 \
     "Codex app-server activation socket ${socket_source_repo}"
   for managed_unit_tmp in "$service_tmp" "$proxy_tmp" "$socket_tmp"; do
+    managed_unit_rendered="${managed_unit_tmp}.rendered"
+    installer_apply_scalar_placeholders \
+      "$managed_unit_tmp" \
+      "$managed_unit_rendered" \
+      DEVOPS_CODEX_WRAPPER_PATH "$DEVOPS_CODEX_WRAPPER_PATH" \
+      DEVOPS_CODEX_BINARY_PATH "$DEVOPS_CODEX_BINARY_PATH" \
+      DEVOPS_CODEX_HOME "$DEVOPS_CODEX_HOME" \
+      DEVOPS_CODEX_SOCKETS_ROOT "$DEVOPS_CODEX_SOCKETS_ROOT" \
+      DEVOPS_CODEX_APP_SERVER_CONTROL_DIR "$DEVOPS_CODEX_APP_SERVER_CONTROL_DIR" \
+      DEVOPS_CODEX_APP_SERVER_READY_HELPER "$DEVOPS_CODEX_APP_SERVER_READY_HELPER" \
+      DEVOPS_CODEX_CREDENTIALS_ROOT "$DEVOPS_CODEX_CREDENTIALS_ROOT" \
+      DEVOPS_CODEX_APP_SERVER_ENVIRONMENT "$DEVOPS_CODEX_APP_SERVER_ENVIRONMENT" \
+      DEVOPS_CODEX_APP_SERVER_BACKEND_SOCKET "$DEVOPS_CODEX_APP_SERVER_BACKEND_SOCKET" \
+      DEVOPS_CODEX_APP_SERVER_SOCKET "$DEVOPS_CODEX_APP_SERVER_SOCKET" ||
+      devops_fatal "failed to render Codex app-server user unit ${managed_unit_tmp}"
+    mv -f -- "$managed_unit_rendered" "$managed_unit_tmp" ||
+      devops_fatal "failed to publish rendered Codex app-server user unit ${managed_unit_tmp}"
     installer_assert_no_unresolved_installer_placeholders \
       "$managed_unit_tmp" \
       "Codex app-server user unit ${managed_unit_tmp}"
   done
-  unset managed_unit_tmp
+  unset managed_unit_tmp managed_unit_rendered
 
   if grep -Eq '^[[:space:]]*(OPENAI_API_KEY|CODEX_MCP_API_KEY)=' "$environment_tmp"; then
     devops_fatal "Codex app-server non-secret environment policy contains a secret assignment"
@@ -70,9 +88,8 @@ devops_stage_codex_app_server() {
   grep -Fqx 'CODEX_APP_SERVER_SECRET_ENV_NAMES=CODEX_MCP_API_KEY' "$environment_tmp" ||
     devops_fatal "Codex app-server environment policy does not contain the approved secret-name allowlist"
   # Require the logging supervisor and the canonical Codex wrapper together.
-  grep -Fqx \
-    'ExecStart=/usr/local/libexec/rsyslog-app-run codex-app-server -- /data/codex/lib/codex app-server --listen unix:///data/codex/sockets/app-server-backend.sock' \
-    "$service_tmp" ||
+  expected_backend_exec="ExecStart=/usr/local/libexec/rsyslog-app-run codex-app-server -- ${DEVOPS_CODEX_WRAPPER_PATH} app-server --listen unix://${DEVOPS_CODEX_APP_SERVER_BACKEND_SOCKET}"
+  grep -Fqx "$expected_backend_exec" "$service_tmp" ||
     devops_fatal "Codex app-server backend does not use the managed wrapper command"
   grep -Fqx 'PartOf=codex-app-server.socket' "$service_tmp" ||
     devops_fatal "Codex app-server backend is not owned by its listener"
@@ -89,16 +106,15 @@ devops_stage_codex_app_server() {
     devops_fatal "Codex app-server backend does not wait for its private socket"
   grep -Fqx 'SuccessExitStatus=143 SIGTERM' "$service_tmp" ||
     devops_fatal "Codex app-server backend does not treat managed listener shutdown as successful"
-  grep -Fqx 'EnvironmentFile=-/etc/codex/app-server.env' "$service_tmp" ||
+  grep -Fqx "EnvironmentFile=-${DEVOPS_CODEX_APP_SERVER_ENVIRONMENT}" "$service_tmp" ||
     devops_fatal "Codex app-server unit is missing its non-secret environment policy"
-  grep -Fqx 'LoadCredential=codex-mcp.env:/data/codex/credentials/mcp.env' "$service_tmp" ||
+  grep -Fqx "LoadCredential=codex-mcp.env:${DEVOPS_CODEX_CREDENTIALS_ROOT}/mcp.env" "$service_tmp" ||
     devops_fatal "Codex app-server unit is missing its MCP credential environment"
   if grep -Eq '^EnvironmentFile=-?%d/' "$service_tmp"; then
     devops_fatal "Codex app-server credentials must be consumed by the execution wrapper"
   fi
-  grep -Fqx \
-    'ExecStart=/usr/lib/systemd/systemd-socket-proxyd --exit-idle-time=10min /data/codex/sockets/app-server-backend.sock' \
-    "$proxy_tmp" ||
+  expected_proxy_exec="ExecStart=/usr/lib/systemd/systemd-socket-proxyd --exit-idle-time=10min ${DEVOPS_CODEX_APP_SERVER_BACKEND_SOCKET}"
+  grep -Fqx "$expected_proxy_exec" "$proxy_tmp" ||
     devops_fatal "Codex app-server proxy does not enforce the managed idle timeout"
   grep -Fqx 'Requires=codex-app-server.socket codex-app-server.service' "$proxy_tmp" ||
     devops_fatal "Codex app-server proxy does not own the backend lifecycle"
@@ -107,7 +123,7 @@ devops_stage_codex_app_server() {
       grep -Fqx 'StandardError=null' "$managed_output_unit" ||
       devops_fatal "Codex app-server units must not send diagnostics to journald"
   done
-  grep -Fqx 'ListenStream=/data/codex/sockets/app-server-control.sock' "$socket_tmp" ||
+  grep -Fqx "ListenStream=${DEVOPS_CODEX_APP_SERVER_SOCKET}" "$socket_tmp" ||
     devops_fatal "Codex app-server activation socket does not own the public endpoint"
   grep -Fqx 'Service=codex-app-server-proxy.service' "$socket_tmp" ||
     devops_fatal "Codex app-server socket does not activate the managed proxy"
@@ -116,7 +132,7 @@ devops_stage_codex_app_server() {
   if grep -Eq '^[[:space:]]*[^#[:space:]].*auth\.json' "$service_tmp"; then
     devops_fatal "Codex app-server unit must not require or overmount pre-login auth.json state"
   fi
-  if grep -Eq '^ExecStart=.*/data/codex/(share/bin/codex|lib/codex-app-server)([[:space:]]|$)' "$service_tmp"; then
+  if grep -Fq "ExecStart=/usr/local/libexec/rsyslog-app-run codex-app-server -- ${DEVOPS_CODEX_BINARY_PATH}" "$service_tmp"; then
     devops_fatal "Codex app-server unit bypasses the managed wrapper"
   fi
   if grep -Eq '^[[:space:]]*WantedBy=' "$service_tmp" "$proxy_tmp"; then

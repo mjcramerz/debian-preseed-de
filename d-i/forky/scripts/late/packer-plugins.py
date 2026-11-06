@@ -18,16 +18,6 @@ import subprocess
 import tempfile
 import zipfile
 
-FINGERPRINT = 'C874011F0AB405110D02105534365D9472D7468F'
-KEY_URL = 'https://www.hashicorp.com/.well-known/pgp-key.txt'
-ORIGIN = 'https://releases.hashicorp.com'
-# Proxmox remains a community-distributed GitHub release, unlike the six
-# official plugins. Pin its published binary digests independently of transport.
-# https://github.com/hashicorp/packer-plugin-proxmox/releases/tag/v1.2.4
-COMMUNITY_RELEASES = {
-    ('proxmox', '1.2.4', 'amd64'): '84a50e8204180756708671809df0f4ec7bcdde9d702c74c7c4e005d3ce9d89e5',
-    ('proxmox', '1.2.4', 'arm64'): 'f416e2332a2e75cd3d03e99efbf75b7d0f8de0e85420dac39ac4cad0b7547bf4',
-}
 PLUGINS = frozenset(('amazon', 'ansible', 'azure', 'docker', 'googlecompute', 'proxmox', 'qemu'))
 VERSION = r'[0-9]+\.[0-9]+\.[0-9]+'
 ENV = {'PATH': '/usr/bin:/bin', 'LC_ALL': 'C', 'CHECKPOINT_DISABLE': '1'}
@@ -104,12 +94,13 @@ def archive_checksum(text: str, name: str, version: str, arch: str) -> tuple[str
     return matches[0]
 
 
-def unpack(archive: Path, destination: Path, name: str, version: str, arch: str) -> Path:
+def unpack(archive: Path, destination: Path, name: str, version: str, arch: str,
+           maximum_extracted: int, maximum_members: int) -> Path:
     pattern = re.compile(r'packer-plugin-' + re.escape(name) + r'_v' + re.escape(version) +
                          r'_x[0-9]+\.[0-9]+_linux_' + re.escape(arch))
     with zipfile.ZipFile(archive) as bundle:
         members = bundle.infolist()
-        if len(members) > 32 or sum(item.file_size for item in members) > 768 * 1024**2:
+        if len(members) > maximum_members or sum(item.file_size for item in members) > maximum_extracted:
             raise Error('plugin release exceeds extraction limits')
         matches = []
         names = set()
@@ -129,7 +120,7 @@ def unpack(archive: Path, destination: Path, name: str, version: str, arch: str)
         output = destination / member.filename
         with bundle.open(member) as source, output.open('xb') as target:
             shutil.copyfileobj(source, target, 1024 * 1024)
-        regular(output, 768 * 1024**2)
+        regular(output, maximum_extracted)
         with output.open('rb') as source:
             header = source.read(20)
         machine = {'amd64': 62, 'arm64': 183}[arch]
@@ -140,7 +131,7 @@ def unpack(archive: Path, destination: Path, name: str, version: str, arch: str)
         return output
 
 
-def import_release_key(gpg: list[str], key: Path, env: dict[str, str]) -> None:
+def import_release_key(gpg: list[str], key: Path, env: dict[str, str], fingerprint: str) -> None:
     listing = subprocess.check_output(gpg + ['--with-colons', '--import-options', 'show-only',
                                            '--import', str(key)], env=env, text=True, timeout=30)
     primary = []
@@ -152,15 +143,15 @@ def import_release_key(gpg: list[str], key: Path, env: dict[str, str]) -> None:
         elif fields[0] == 'fpr' and pending:
             primary.append(fields[9])
             pending = False
-    if primary != [FINGERPRINT]:
+    if primary != [fingerprint]:
         raise Error('HashiCorp release signing-key fingerprint mismatch')
     subprocess.run(gpg + ['--import', str(key)], env=env, check=True, timeout=30)
 
-def verify_checksums(gpg: list[str], signature: Path, sums: Path, env: dict[str, str]) -> None:
+def verify_checksums(gpg: list[str], signature: Path, sums: Path, env: dict[str, str], fingerprint: str) -> None:
     status = subprocess.check_output(gpg + ['--status-fd=1', '--verify', str(signature), str(sums)],
                                      env=env, text=True, timeout=30)
     valid = [line.split() for line in status.splitlines() if line.startswith('[GNUPG:] VALIDSIG ')]
-    if len(valid) != 1 or FINGERPRINT not in (valid[0][2], valid[0][-1]):
+    if len(valid) != 1 or fingerprint not in (valid[0][2], valid[0][-1]):
         raise Error('release checksum signature is not from the pinned HashiCorp key')
 
 
@@ -180,7 +171,7 @@ def verify_local_plugins(packer: Path, template: Path, root: Path,
             raise Error(f'Packer does not recognize exactly one installed {name} {pin} plugin')
         binary = matches[0]
         directory(binary.parent)
-        regular(binary, 768 * 1024**2)
+        regular(binary, int(os.environ['DEVOPS_PACKER_ARCHIVE_MAXIMUM_EXTRACTED_BYTES']))
         if not os.access(binary, os.X_OK):
             raise Error(f'installed Packer plugin is not executable: {name} {pin}')
         checksum = Path(str(binary) + '_SHA256SUM')
@@ -205,7 +196,7 @@ def install(template: Path, packer: Path, root: Path) -> None:
     if os.geteuid() == 0:
         raise Error('Packer plugins must be provisioned as the desktop account, not root')
     directory(template.parent)
-    regular(template, 64 * 1024)
+    regular(template, int(os.environ['DEVOPS_PACKER_TEMPLATE_MAXIMUM_BYTES']))
     directory(root)
     value = root.stat()
     if value.st_uid != os.geteuid() or value.st_mode & 0o007:
@@ -224,6 +215,23 @@ def install(template: Path, packer: Path, root: Path) -> None:
     if not os.access(packer, os.X_OK):
         raise Error('managed Packer executable is not executable')
     version, plugins = requirements(template.read_text(encoding='utf-8'))
+    fingerprint = os.environ['DEVOPS_PACKER_SIGNING_KEY_FINGERPRINT']
+    key_url = os.environ['DEVOPS_PACKER_SIGNING_KEY_URL']
+    origin = os.environ['DEVOPS_PACKER_RELEASE_ORIGIN'].rstrip('/')
+    proxmox_origin = os.environ['DEVOPS_PACKER_PROXMOX_RELEASE_ORIGIN'].rstrip('/')
+    proxmox_version = os.environ['DEVOPS_PACKER_PROXMOX_VERSION']
+    community_releases = {
+        ('proxmox', proxmox_version, 'amd64'): os.environ['DEVOPS_PACKER_PROXMOX_AMD64_SHA256'],
+        ('proxmox', proxmox_version, 'arm64'): os.environ['DEVOPS_PACKER_PROXMOX_ARM64_SHA256'],
+    }
+    limits = {
+        'key': int(os.environ['DEVOPS_PACKER_SIGNING_KEY_MAXIMUM_BYTES']),
+        'sums': int(os.environ['DEVOPS_PACKER_CHECKSUMS_MAXIMUM_BYTES']),
+        'signature': int(os.environ['DEVOPS_PACKER_SIGNATURE_MAXIMUM_BYTES']),
+        'archive': int(os.environ['DEVOPS_PACKER_ARCHIVE_MAXIMUM_BYTES']),
+        'extracted': int(os.environ['DEVOPS_PACKER_ARCHIVE_MAXIMUM_EXTRACTED_BYTES']),
+        'members': int(os.environ['DEVOPS_PACKER_ARCHIVE_MAXIMUM_MEMBERS']),
+    }
     arch = subprocess.check_output(['/usr/bin/dpkg', '--print-architecture'], text=True, env=ENV).strip()
     if arch not in ('amd64', 'arm64'):
         raise Error('unsupported managed plugin architecture')
@@ -248,31 +256,31 @@ def install(template: Path, packer: Path, root: Path) -> None:
         home.mkdir(mode=0o700)
         gpg = ['/usr/bin/gpg', '--no-options', '--no-autostart', '--batch', '--no-tty', '--homedir', str(home)]
         key = work / 'release-key.asc'
-        fetch(KEY_URL, key, 256 * 1024, env)
-        import_release_key(gpg, key, env)
+        fetch(key_url, key, limits['key'], env)
+        import_release_key(gpg, key, env, fingerprint)
         for name, pin in plugins.items():
             print(f'Installing authenticated Packer plugin {name} {pin}', flush=True)
             if name == 'proxmox':
-                expected = COMMUNITY_RELEASES.get((name, pin, arch))
+                expected = community_releases.get((name, pin, arch))
                 if expected is None:
                     raise Error('the exact Proxmox release needs a reviewed binary digest pin')
-                base = f'https://github.com/hashicorp/packer-plugin-{name}/releases/download/v{pin}/'
+                base = f'{proxmox_origin}/v{pin}/'
                 filename = f'packer-plugin-{name}_v{pin}_x5.0_linux_{arch}.zip'
             else:
-                base = f'{ORIGIN}/packer-plugin-{name}/{pin}/'
+                base = f'{origin}/packer-plugin-{name}/{pin}/'
                 sums_name = f'packer-plugin-{name}_{pin}_SHA256SUMS'
                 sums, signature = work / sums_name, work / (sums_name + '.sig')
-                fetch(base + sums_name, sums, 1024 * 1024, env)
-                fetch(base + sums_name + '.sig', signature, 64 * 1024, env)
-                verify_checksums(gpg, signature, sums, env)
+                fetch(base + sums_name, sums, limits['sums'], env)
+                fetch(base + sums_name + '.sig', signature, limits['signature'], env)
+                verify_checksums(gpg, signature, sums, env, fingerprint)
                 filename, expected = archive_checksum(sums.read_text(encoding='ascii'), name, pin, arch)
             archive = work / filename
-            fetch(base + filename, archive, 256 * 1024**2, env)
+            fetch(base + filename, archive, limits['archive'], env)
             with archive.open('rb') as source:
                 actual_hash = hashlib.file_digest(source, 'sha256').hexdigest()
             if actual_hash != expected:
                 raise Error(f'checksum mismatch for authenticated {name} release; nothing executed')
-            binary = unpack(archive, work, name, pin, arch)
+            binary = unpack(archive, work, name, pin, arch, limits['extracted'], limits['members'])
             # Packer itself validates describe/protocol and writes its canonical
             # executable + SHA256SUM pair. Do not invent its on-disk cache format.
             subprocess.run([str(packer), 'plugins', 'install', '--path', str(binary),

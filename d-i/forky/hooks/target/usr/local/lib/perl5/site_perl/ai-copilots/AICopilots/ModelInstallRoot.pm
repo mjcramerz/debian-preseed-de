@@ -47,6 +47,8 @@ has admission_directory => (
     default => sub { '/var/lib/ai-model-download' },
 );
 
+use constant ENDPOINTS_PATH => '/usr/local/share/labwc-ai-copilots/endpoints.json';
+
 sub _fatal {
     my ($message) = @_;
     die "labwc-ai-model-install-root: $message\n";
@@ -83,7 +85,7 @@ sub _family_policy {
 }
 
 sub _validate_install_request {
-    my ($family, $url, $filename, $sha256, $expected_bytes) = @_;
+    my ($family, $url, $filename, $sha256, $expected_bytes, $web_base) = @_;
     my $filename_pattern =
         $family eq 'llama'
         ? qr/\A[A-Za-z0-9][A-Za-z0-9._-]{0,127}\.gguf\z/
@@ -96,9 +98,11 @@ sub _validate_install_request {
         : (1_048_576, 21_474_836_480);
 
     defined($url) && !ref($url) && length($url) <= 2048
-        && $url =~ m{\Ahttps://huggingface\.co/[A-Za-z0-9_./?&=%+,~#:@-]+\z}
+        && $url =~ m{\Ahttps://[^\s"\\]+\z}
         && $url !~ /[\0\r\n\s]/
-        or _fatal('model URL must be a credential-free Hugging Face HTTPS URL');
+        or _fatal('model URL must be a credential-free HTTPS URL');
+    defined($web_base) && !ref($web_base) && $url =~ /\A\Q$web_base\E\//
+        or _fatal('model URL is outside the configured model service');
     defined($filename) && !ref($filename) && $filename =~ $filename_pattern
         && $filename !~ /\.\./
         or _fatal('model filename is invalid');
@@ -112,9 +116,25 @@ sub _validate_install_request {
     return 1;
 }
 
+sub _endpoint {
+    my ($self, $name) = @_;
+    open my $fh, '<:raw', ENDPOINTS_PATH
+        or _fatal('AI model endpoint policy is unavailable');
+    local $/;
+    my $raw = <$fh>;
+    close $fh or _fatal('AI model endpoint policy could not be read');
+    defined($raw) && length($raw) <= 8192
+        or _fatal('AI model endpoint policy is too large');
+    my $policy = eval { decode_json($raw) };
+    ref($policy) eq 'HASH' && defined($policy->{$name}) && !ref($policy->{$name})
+        && $policy->{$name} =~ /\Ahttps:\/\/[^\s"\\]+\z/
+        or _fatal("AI model endpoint policy is invalid: $name");
+    return $policy->{$name};
+}
+
 sub _metadata_url {
-    my ($entry) = @_;
-    return 'https://huggingface.co/api/models/'
+    my ($self, $entry) = @_;
+    return $self->_endpoint('huggingface_api_base_url') . '/models/'
         . $entry->{repository}
         . '/revision/'
         . $entry->{revision}
@@ -148,7 +168,7 @@ sub _fetch_model_metadata {
         '--max-filesize', "$maximum_bytes",
         '--header', 'Accept: application/json',
         '--user-agent', 'labwc-ai-copilots/1',
-        _metadata_url($entry),
+        $self->_metadata_url($entry),
     );
     my $result = capture_command(argv => \@command, timeout => 95, limit => $maximum_bytes);
     $result->{status} == 0 or _fatal('Hugging Face metadata request failed');
@@ -210,7 +230,7 @@ sub _resolve_catalog_download {
             or _fatal('catalog model file and LFS byte counts disagree');
     }
 
-    my $url = 'https://huggingface.co/'
+    my $url = $self->_endpoint('huggingface_web_base_url') . '/'
         . $entry->{repository}
         . '/resolve/'
         . $entry->{revision}
@@ -223,6 +243,7 @@ sub _resolve_catalog_download {
         $entry->{local_filename},
         $sha256,
         $expected_bytes,
+        $self->_endpoint('huggingface_web_base_url'),
     );
     return ($url, $sha256, int($expected_bytes));
 }
@@ -407,6 +428,7 @@ sub _download {
         $filename,
         $sha256,
         $expected_bytes,
+        $self->_endpoint('huggingface_web_base_url'),
     );
     my $policy = $self->_assert_directory_contract($family);
     -x $self->curl() && !-l $self->curl()

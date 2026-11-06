@@ -112,15 +112,15 @@ whisper_validate_model_source() {
     *.bin) model_filename=$WHISPER_DEFAULT_MODEL ;;
     *) model_filename="${WHISPER_DEFAULT_MODEL}.bin" ;;
   esac
+  model_asset_filename="ggml-${model_filename}"
   case "$WHISPER_DOWNLOAD_URL" in
-    https://huggingface.co/ggerganov/whisper.cpp/resolve/*/ggml-"$model_filename") ;;
+    https://*/"$model_asset_filename") ;;
     *)
-      whisper_fatal "WHISPER_DOWNLOAD_URL must pin the official ggml-${model_filename} artifact"
+      whisper_fatal "WHISPER_DOWNLOAD_URL must end with the configured model asset ${model_asset_filename}"
       ;;
   esac
-  model_url_suffix="/ggml-${model_filename}"
-  model_url_ref=${WHISPER_DOWNLOAD_URL#https://huggingface.co/ggerganov/whisper.cpp/resolve/}
-  model_url_ref=${model_url_ref%"$model_url_suffix"}
+  model_url_ref=${WHISPER_DOWNLOAD_URL%/"$model_asset_filename"}
+  model_url_ref=${model_url_ref##*/}
   model_url_ref_length=$(printf '%s' "$model_url_ref" | wc -c | tr -d ' ')
   [ "$model_url_ref_length" = 40 ] ||
     whisper_fatal "WHISPER_DOWNLOAD_URL must use an immutable 40-character revision"
@@ -133,7 +133,7 @@ whisper_validate_model_source() {
   whisper_validate_sha256 WHISPER_MODEL_SHA256 "$WHISPER_MODEL_SHA256"
   model_min_bytes=$WHISPER_MODEL_MIN_BYTES
   model_sha256=$WHISPER_MODEL_SHA256
-  unset model_url_ref model_url_ref_length model_url_suffix
+  unset model_url_ref model_url_ref_length model_asset_filename
 }
 
 whisper_validate_release_policy() {
@@ -155,25 +155,25 @@ whisper_validate_release_policy() {
   unset release_suffix
 
   whisper_validate_sha256 WHISPER_RELEASE_SHA256 "$WHISPER_RELEASE_SHA256"
-  whisper_validate_integer_range WHISPER_RELEASE_MINIMUM_BYTES "$WHISPER_RELEASE_MINIMUM_BYTES" 1 536870912
+  whisper_validate_integer_range WHISPER_RELEASE_MINIMUM_BYTES "$WHISPER_RELEASE_MINIMUM_BYTES" 1 "$WHISPER_RELEASE_MAXIMUM_EXTRACTED_BYTES"
   whisper_validate_integer_range \
     WHISPER_RELEASE_MAXIMUM_EXTRACTED_BYTES \
     "$WHISPER_RELEASE_MAXIMUM_EXTRACTED_BYTES" \
     "$WHISPER_RELEASE_MINIMUM_BYTES" \
-    1073741824
+    "$WHISPER_RELEASE_MAXIMUM_EXTRACTED_BYTES"
   whisper_validate_integer_range \
     WHISPER_RELEASE_MAXIMUM_MEMBERS \
     "$WHISPER_RELEASE_MAXIMUM_MEMBERS" \
     6 \
     128
 
-  case "${WHISPER_RELEASE_ARCHIVE_ROOT}:${WHISPER_RELEASE_REQUIRED_CLASS}" in
-    whisper-cuda:addon/cuda-legacy) ;;
-    whisper-ram:) ;;
-    *)
-      whisper_fatal \
-        "unsupported Whisper release root/class contract: ${WHISPER_RELEASE_ARCHIVE_ROOT}:${WHISPER_RELEASE_REQUIRED_CLASS}"
-      ;;
+  case "$WHISPER_RELEASE_ARCHIVE_ROOT" in
+    ''|.|..|*[!ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789._-]*)
+      whisper_fatal "WHISPER_RELEASE_ARCHIVE_ROOT must be a safe archive directory name" ;;
+  esac
+  case "$WHISPER_RELEASE_REQUIRED_CLASS" in
+    ''|addon/*) ;;
+    *) whisper_fatal "WHISPER_RELEASE_REQUIRED_CLASS must be empty or an addon class reference" ;;
   esac
 }
 
@@ -210,14 +210,10 @@ whisper_validate_policy() {
   whisper_validate_abs_path WHISPER_BINARY_DIR "$WHISPER_BINARY_DIR"
   whisper_validate_abs_path WHISPER_METADATA_DIR "$WHISPER_METADATA_DIR"
   whisper_validate_abs_path WHISPER_MODEL_DIR "$WHISPER_MODEL_DIR"
-  [ "$WHISPER_ROOT" = /data/whisper ] ||
-    whisper_fatal "WHISPER_ROOT must remain /data/whisper"
   [ "$WHISPER_BINARY_DIR" = "${WHISPER_ROOT}/bin" ] ||
     whisper_fatal "WHISPER_BINARY_DIR must remain ${WHISPER_ROOT}/bin"
   [ "$WHISPER_METADATA_DIR" = "${WHISPER_ROOT}/metadata" ] ||
     whisper_fatal "WHISPER_METADATA_DIR must remain ${WHISPER_ROOT}/metadata"
-  [ "$WHISPER_MODEL_DIR" = /pool/cache/whisper/models ] ||
-    whisper_fatal "WHISPER_MODEL_DIR must remain /pool/cache/whisper/models"
 
   whisper_validate_bool WHISPER_STRICT_RESOURCES "${WHISPER_STRICT_RESOURCES-}"
   whisper_validate_bool WHISPER_FORCE_DOWNLOAD "${WHISPER_FORCE_DOWNLOAD-}"

@@ -36,9 +36,15 @@ import urllib.parse
 import uuid
 import xml.etree.ElementTree as ET
 
-# Publisher input/output ceiling; retained Perl validation has separate headroom.
-MAX_DEB = 2 * 1024 * 1024 * 1024
-MAX_CONTROL = 16 * 1024 * 1024
+# These ceilings are rendered from shared-de.env. Keep package, archive, and
+# expanded-tree budgets separate so each trust boundary has an explicit cap.
+MAX_DOWNLOAD = __INSTALLER_SOFTWARE_APT_REPO_LOCAL_DOWNLOAD_MAXIMUM_BYTES__
+MAX_DEB = __INSTALLER_SOFTWARE_APT_REPO_LOCAL_DEB_MAXIMUM_BYTES__
+MAX_ARCHIVE = __INSTALLER_SOFTWARE_APT_REPO_LOCAL_ARCHIVE_MAXIMUM_BYTES__
+MAX_EXTRACTED = __INSTALLER_SOFTWARE_APT_REPO_LOCAL_EXTRACTED_MAXIMUM_BYTES__
+MAX_CONTROL = __INSTALLER_SOFTWARE_APT_REPO_LOCAL_CONTROL_MAXIMUM_BYTES__
+MAX_HEADERS = __INSTALLER_SOFTWARE_APT_REPO_LOCAL_HEADERS_MAXIMUM_BYTES__
+MAX_METADATA = __INSTALLER_SOFTWARE_APT_REPO_LOCAL_METADATA_MAXIMUM_BYTES__
 ENV = {"PATH": "/usr/sbin:/usr/bin:/sbin:/bin", "HOME": "/root", "LC_ALL": "C.UTF-8"}
 NAME = re.compile(r"[a-z0-9][a-z0-9+.-]+\Z")
 ARCH = re.compile(r"[a-z0-9][a-z0-9-]{0,31}\Z")
@@ -563,7 +569,7 @@ def rewrite_data(source: Path, destination: Path, policy: dict,
                             name = archive_name(item.name)
                             count += 1
                             total += item.size
-                            if count > 200000 or total > 4 * MAX_DEB or name in seen:
+                            if count > 200000 or total > MAX_EXTRACTED or name in seen:
                                 raise Error("duplicate or oversized data archive")
                             seen.add(name)
                             if not item.isdir():
@@ -749,8 +755,6 @@ def https_url(value: str) -> str:
 # Update discovery is deliberately separate from artifact retrieval. A metadata
 # request may GET bounded JSON/RSS/signatures; it never GETs a package to find
 # out whether the package changed.
-MAX_METADATA = 8 * 1024 * 1024
-MAX_HEADERS = 64 * 1024
 ARCH_ALIASES = {
     "amd64": ("amd64", "x86_64", "x86-64", "x64"),
     "arm64": ("arm64", "aarch64"),
@@ -790,7 +794,7 @@ def http_headers(raw: bytes, status: int) -> dict[str, str]:
     return result
 
 
-def request(url: str, destination: Path, *, method: str = "GET", maximum: int = MAX_DEB,
+def request(url: str, destination: Path, *, method: str = "GET", maximum: int = MAX_DOWNLOAD,
             headers: dict[str, str] | None = None) -> dict:
     https_url(url)
     if method not in ("GET", "HEAD"):
@@ -840,7 +844,7 @@ def request(url: str, destination: Path, *, method: str = "GET", maximum: int = 
         header_path.unlink(missing_ok=True)
 
 
-def download(url: str, destination: Path, maximum: int = MAX_DEB) -> dict:
+def download(url: str, destination: Path, maximum: int = MAX_DOWNLOAD) -> dict:
     return request(url, destination, maximum=maximum)
 
 
@@ -1271,7 +1275,7 @@ def extract_vendor(archive: Path, destination: Path, kind: str) -> None:
     digest = digest_file(archive)
     try:
         run(['/usr/local/libexec/tuta-extract', '--repository-' + kind,
-             str(archive), str(destination), digest], timeout=660, file_limit=2 * MAX_DEB)
+             str(archive), str(destination), digest], timeout=660, file_limit=MAX_ARCHIVE)
     except Error as error:
         if (isinstance(error, CommandFailure) and error.returncode == 3
                 or isinstance(error.__cause__, subprocess.TimeoutExpired)):
@@ -1305,7 +1309,7 @@ def staged_entries(tree: Path):
             meta = entry.stat(follow_symlinks=False)
             count += 1
             total += meta.st_size if stat.S_ISREG(meta.st_mode) else 0
-            if count >= 30000 or total > 2 * MAX_DEB:
+            if count >= 30000 or total > MAX_ARCHIVE:
                 raise Error('staged payload exceeds count/byte bounds')
             yield path
             if stat.S_ISDIR(meta.st_mode):
@@ -1346,7 +1350,7 @@ def assemble_binary_package(output: Path, tree: Path, install_root: str, control
                 raise Error("prebuilt payload symlink escapes its application root")
         elif not stat.S_ISDIR(st.st_mode):
             raise Error("special file in prebuilt payload")
-    if total > 2 * MAX_DEB:
+    if total > MAX_ARCHIVE:
         raise Error("prebuilt payload exceeds expanded-size bounds")
     control = dict(control, **{"Installed-Size": str((total + 1023) // 1024)})
     control_stream = io.BytesIO()
@@ -1381,7 +1385,7 @@ def assemble_binary_package(output: Path, tree: Path, install_root: str, control
                     else:
                         info.mode = 0o755 if info.mode & 0o111 else 0o644
                 if info.isfile():
-                    with os.fdopen(checked_file(path, limit=2 * MAX_DEB, single_link=False), "rb") as stream:
+                    with os.fdopen(checked_file(path, limit=MAX_ARCHIVE, single_link=False), "rb") as stream:
                         archive.addfile(info, stream)
                 else:
                     archive.addfile(info)
@@ -1921,7 +1925,7 @@ class Repository:
         argv = ["/usr/local/libexec/apt-repo-local-vendor", action, app]
         if work is not None:
             argv.append(str(work))
-        return json.loads(run(argv, timeout=1200, file_limit=4 * MAX_DEB))
+        return json.loads(run(argv, timeout=1200, file_limit=MAX_EXTRACTED))
 
     def vendor_package(self, descriptor: dict, work: Path, previous: dict | None = None,
                        tracking: dict | None = None, *, force: bool = False) -> dict:

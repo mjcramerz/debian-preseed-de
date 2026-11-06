@@ -1,5 +1,5 @@
 #!/usr/bin/python3 -IB
-"""Commit a quiescent Obsidian vault and fast-forward three GitLab branches."""
+"""Commit a quiescent Obsidian vault and fast-forward its configured branch."""
 from __future__ import annotations
 
 import datetime
@@ -7,7 +7,9 @@ import fcntl
 import hashlib
 import os
 from pathlib import Path
+from pathlib import PurePosixPath
 import pwd
+import re
 import selectors
 import signal
 import stat
@@ -15,19 +17,18 @@ import subprocess
 import sys
 import time
 
-URL = 'git@gitlab.com:core-assets/docs/obsidian-md.git'
-BRANCHES = ('mcr/main', 'mcr/staging', 'mcr/release')
 QUIET_SECONDS = 30
 AUTO_POLICY = Path('/etc/obsidian-git-sync.conf')
 MAX_GIT_OUTPUT_BYTES = 16 * 1024 * 1024
 MAX_VAULT_ENTRIES = 50_000
+MAX_POLICY_BYTES = 4096
 
 
 class SyncError(Exception):
     pass
 
 
-def auto_enabled() -> bool:
+def _read_policy_bytes() -> bytes:
     """Read the installed profile policy as data, never shell or environment."""
     directory = os.environ.get('CREDENTIALS_DIRECTORY')
     if directory is not None:
@@ -50,10 +51,12 @@ def auto_enabled() -> bool:
                 if (not stat.S_ISREG(info.st_mode) or info.st_uid != os.getuid()
                         or info.st_nlink != 1 or info.st_mode & 0o377):
                     raise SyncError('untrusted automatic Git credential file')
-                value = stream.read(128)
+                value = stream.read(MAX_POLICY_BYTES + 1)
+                if len(value) > MAX_POLICY_BYTES:
+                    raise SyncError('automatic Git policy is oversized')
         finally:
             os.close(dfd)
-        return parse_auto_policy(value)
+        return value
     for parent in AUTO_POLICY.parents:
         info = parent.lstat()
         if not stat.S_ISDIR(info.st_mode) or info.st_uid != 0 or info.st_mode & 0o022:
@@ -61,20 +64,72 @@ def auto_enabled() -> bool:
     try:
         fd = os.open(AUTO_POLICY, os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK | os.O_CLOEXEC)
     except FileNotFoundError:
-        return False
+        return b''
     with os.fdopen(fd, 'rb') as stream:
         info = os.fstat(stream.fileno())
         if (not stat.S_ISREG(info.st_mode) or info.st_uid != 0
                 or info.st_nlink != 1 or info.st_mode & 0o022):
             raise SyncError('untrusted automatic Git policy file')
-        value = stream.read(128)
-    return parse_auto_policy(value)
+        value = stream.read(MAX_POLICY_BYTES + 1)
+    if len(value) > MAX_POLICY_BYTES:
+        raise SyncError('automatic Git policy is oversized')
+    return value
 
 
-def parse_auto_policy(value: bytes) -> bool:
-    if value not in (b'OBSIDIAN_GIT_AUTO_ENABLE=true\n', b'OBSIDIAN_GIT_AUTO_ENABLE=false\n'):
+def parse_policy(value: bytes) -> dict[str, object]:
+    try:
+        lines = value.decode('ascii').splitlines()
+    except UnicodeDecodeError as exc:
+        raise SyncError('invalid Obsidian Git policy encoding') from exc
+    allowed = {
+        'OBSIDIAN_GIT_AUTO_ENABLE',
+        'OBSIDIAN_GIT_REPOSITORY_URL',
+        'OBSIDIAN_GIT_REPOSITORY_BRANCH',
+        'OBSIDIAN_GIT_DIRECTORY',
+    }
+    entries: dict[str, str] = {}
+    for line in lines:
+        key, separator, item = line.partition('=')
+        if not separator or key not in allowed or key in entries or not item:
+            raise SyncError('invalid Obsidian Git policy entry')
+        if any(ord(char) < 0x20 or ord(char) == 0x7f for char in item):
+            raise SyncError('invalid Obsidian Git policy value')
+        entries[key] = item
+    if set(entries) != allowed:
+        raise SyncError('incomplete Obsidian Git policy')
+    enabled = entries['OBSIDIAN_GIT_AUTO_ENABLE']
+    if enabled not in ('true', 'false'):
         raise SyncError('invalid OBSIDIAN_GIT_AUTO_ENABLE policy')
-    return value == b'OBSIDIAN_GIT_AUTO_ENABLE=true\n'
+    url = entries['OBSIDIAN_GIT_REPOSITORY_URL']
+    if (not re.fullmatch(r'git@[A-Za-z0-9.-]+:[A-Za-z0-9._-]+/[A-Za-z0-9._/-]+', url)
+            or '..' in url or '//' in url or url.endswith('/')):
+        raise SyncError('invalid Obsidian Git repository URL')
+    branch = entries['OBSIDIAN_GIT_REPOSITORY_BRANCH']
+    if (not re.fullmatch(r'[A-Za-z0-9][A-Za-z0-9._/-]*', branch)
+            or branch.endswith('/') or '//' in branch or '..' in branch):
+        raise SyncError('invalid Obsidian Git primary branch')
+    directory = entries['OBSIDIAN_GIT_DIRECTORY']
+    directory_path = PurePosixPath(directory)
+    if (not re.fullmatch(r'[A-Za-z0-9._-]+/[A-Za-z0-9._-]+', directory)
+            or len(directory_path.parts) != 2):
+        raise SyncError('invalid Obsidian Git checkout directory')
+    return {
+        'enabled': enabled == 'true',
+        'url': url,
+        'branch': branch,
+        'directory': directory_path,
+    }
+
+
+def load_policy() -> dict[str, object]:
+    value = _read_policy_bytes()
+    if not value:
+        return {'enabled': False}
+    return parse_policy(value)
+
+
+def auto_enabled() -> bool:
+    return bool(load_policy()['enabled'])
 
 
 def git(root: Path, *args: str) -> bytes:
@@ -209,23 +264,25 @@ def snapshot(root: Path, known: set[bytes] | None = None) -> dict[bytes, tuple]:
     return result
 
 
-def sync(root: Path) -> str:
-    if not auto_enabled():
+def sync(root: Path, policy: dict[str, object]) -> str:
+    if not policy['enabled']:
         return 'automatic Git publication disabled; add, commit and push manually'
+    url = str(policy['url'])
+    branch = str(policy['branch'])
     owned_dir(root.parent.parent)
     owned_dir(root.parent)
     owned_dir(root)
     owned_dir(root/'.git')
     if git(root, 'rev-parse', '--show-toplevel').strip() != os.fsencode(root):
         raise SyncError('vault is not the expected Git worktree')
-    if git(root, 'symbolic-ref', '--short', 'HEAD').strip() != BRANCHES[0].encode():
-        raise SyncError('vault must remain checked out on mcr/main')
-    if git(root, 'remote', 'get-url', 'origin').strip() != URL.encode():
+    if git(root, 'symbolic-ref', '--short', 'HEAD').strip() != branch.encode():
+        raise SyncError(f'vault must remain checked out on {branch}')
+    if git(root, 'remote', 'get-url', 'origin').strip() != url.encode():
         raise SyncError('vault origin does not match the approved SSH repository')
-    if git(root, 'remote', 'get-url', '--push', '--all', 'origin').splitlines() != [URL.encode()]:
+    if git(root, 'remote', 'get-url', '--push', '--all', 'origin').splitlines() != [url.encode()]:
         raise SyncError('vault push destination does not match the approved SSH repository')
-    if git(root, 'rev-parse', '--abbrev-ref', '@{upstream}').strip() != b'origin/mcr/main':
-        raise SyncError('vault does not track origin/mcr/main')
+    if git(root, 'rev-parse', '--abbrev-ref', '@{upstream}').strip() != f'origin/{branch}'.encode():
+        raise SyncError(f'vault does not track origin/{branch}')
 
     lock = root/'.git/obsidian-git-sync.lock'
     fd = os.open(lock, os.O_WRONLY | os.O_CREAT | os.O_NOFOLLOW | os.O_CLOEXEC, 0o600)
@@ -241,23 +298,23 @@ def sync(root: Path) -> str:
             raise SyncError('another Git operation is active')
         if git(root, 'ls-files', '-u'):
             raise SyncError('unresolved merge conflicts')
-        # Explicit refspecs also fetch staging/release after --single-branch clone.
+        # Fetch the configured branch explicitly after a single-branch clone.
         remote = {}
         advertised = git(root, 'ls-remote', '--heads', 'origin',
-                         *(f'refs/heads/{name}' for name in BRANCHES))
+                         f'refs/heads/{branch}')
         for row in advertised.splitlines():
             sha, ref = row.split(b'\t', 1)
             name = ref.removeprefix(b'refs/heads/').decode('ascii')
-            if name not in BRANCHES or name in remote or len(sha) not in (40, 64):
+            if name != branch or name in remote or len(sha) not in (40, 64):
                 raise SyncError('unexpected remote branch advertisement')
             remote[name] = sha
-        if BRANCHES[0] not in remote:
-            raise SyncError('remote mcr/main is missing')
+        if branch not in remote:
+            raise SyncError(f'remote {branch} is missing')
         git(root, 'fetch', '--no-tags', 'origin',
-            *(f'+refs/heads/{name}:refs/remotes/origin/{name}' for name in remote))
+            f'+refs/heads/{branch}:refs/remotes/origin/{branch}')
         head = git(root, 'rev-parse', 'HEAD').strip()
-        base = git(root, 'merge-base', remote[BRANCHES[0]].decode(), head.decode()).strip()
-        if base != remote[BRANCHES[0]]:
+        base = git(root, 'merge-base', remote[branch].decode(), head.decode()).strip()
+        if base != remote[branch]:
             raise SyncError('remote main diverged; resolve manually without discarding notes')
         if git(root, 'diff', '--cached', '--name-only'):
             raise SyncError('user has staged changes; leave the index untouched')
@@ -287,15 +344,11 @@ def sync(root: Path) -> str:
                 if before != snapshot(root, set(before)):
                     raise SyncError('vault changed during commit; local commit kept, no push')
         head = git(root, 'rev-parse', 'HEAD').strip()
-        for name in BRANCHES[1:]:
-            if name in remote and git(root, 'merge-base', remote[name].decode(),
-                                      head.decode()).strip() != remote[name]:
-                raise SyncError(f'remote {name} diverged; refusing to overwrite it')
-        if all(remote.get(name) == head for name in BRANCHES):
-            return 'all branches already up to date'
+        if remote.get(branch) == head:
+            return 'configured branch already up to date'
         git(root, 'push', '--atomic', 'origin',
-            *(f'{head.decode()}:refs/heads/{name}' for name in BRANCHES))
-        return 'pushed mcr/main, mcr/staging and mcr/release atomically'
+            f'{head.decode()}:refs/heads/{branch}')
+        return f'pushed {branch} atomically'
     finally:
         os.close(fd)
 
@@ -304,12 +357,16 @@ def main() -> int:
     try:
         if os.getuid() == 0 or sys.argv[1:] not in ([], ['--check-auto-enabled']):
             raise SyncError('run as the desktop user with no arguments or --check-auto-enabled')
+        policy = load_policy()
         if sys.argv[1:] == ['--check-auto-enabled']:
-            return 0 if auto_enabled() else 1
+            return 0 if policy['enabled'] else 1
+        if not policy['enabled']:
+            print('obsidian-git-sync: automatic Git publication disabled; add, commit and push manually')
+            return 0
         account = pwd.getpwuid(os.getuid())
         if os.environ.get('HOME') != account.pw_dir or not account.pw_dir.startswith('/home/'):
             raise SyncError('unexpected desktop account home')
-        print('obsidian-git-sync: '+sync(Path(account.pw_dir)/'Syncthing/obsidian-md'))
+        print('obsidian-git-sync: '+sync(Path(account.pw_dir)/policy['directory'], policy))
     except (OSError, ValueError, subprocess.SubprocessError, SyncError) as exc:
         print(f'obsidian-git-sync: {exc}', file=sys.stderr)
         return 2 if sys.argv[1:] == ['--check-auto-enabled'] else 1

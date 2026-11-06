@@ -1,4 +1,5 @@
 #!/bin/sh
+# shellcheck disable=SC2154
 # Sourced installer module; edit this file directly.
 
 devops_fatal() {
@@ -52,27 +53,33 @@ devops_validate_abs_path() {
   esac
 }
 
-devops_validate_aptly_signing_key_path() {
+devops_validate_install_layout() {
+  label=$1
+  install_root=$2
+  binary_path=$3
+
+  devops_validate_abs_path "${label} install root" "$install_root"
+  devops_validate_abs_path "${label} binary path" "$binary_path"
+  case "$binary_path" in
+    "$install_root"/*) ;;
+    *) devops_fatal "${label} binary path must be below its install root" ;;
+  esac
+}
+
+devops_validate_file_path() {
   label=$1
   path_value=$2
 
   devops_validate_abs_path "$label" "$path_value"
-  case "$path_value" in
-    /aptly-signing/*)
-      aptly_signing_key_name=${path_value#/aptly-signing/}
-      ;;
-    *)
-      devops_fatal "${label} must name a file directly below /aptly-signing: $path_value"
+  file_name=${path_value##*/}
+  case "$file_name" in
+    ''|.|..)
+      devops_fatal "${label} must name a file: $path_value"
       ;;
   esac
-  case "$aptly_signing_key_name" in
-    ''|.|..|*/*)
-      devops_fatal "${label} must name one file directly below /aptly-signing: $path_value"
-      ;;
-  esac
-  [ "${#aptly_signing_key_name}" -le 255 ] ||
+  [ "${#file_name}" -le 255 ] ||
     devops_fatal "${label} filename exceeds 255 characters"
-  unset aptly_signing_key_name
+  unset file_name
 }
 
 devops_validate_account_name() {
@@ -255,15 +262,11 @@ devops_validate_node_release() {
     devops_fatal "Node ${expected_major} archive filename does not match its version"
   [ "$archive_root" = "node-${version}-linux-x64" ] ||
     devops_fatal "Node ${expected_major} archive root does not match its version"
-  [ "$url" = "https://nodejs.org/dist/${version}/${archive_filename}" ] ||
-    devops_fatal "Node ${expected_major} URL must identify its official Linux x64 release archive"
+  case "$url" in
+    https://*/"$archive_filename") ;;
+    *) devops_fatal "Node ${expected_major} URL does not match its configured archive" ;;
+  esac
   devops_validate_lower_hex "Node ${expected_major} SHA-256" "$sha256" 64
   devops_validate_positive_integer "Node ${expected_major} minimum bytes" "$minimum_bytes"
-  devops_validate_abs_path "Node ${expected_major} install root" "$install_root"
-  devops_validate_abs_path "Node ${expected_major} binary path" "$binary_path"
-  [ "$install_root" = "/usr/local/lib/node-${expected_major}" ] ||
-    devops_fatal "Node ${expected_major} install root must remain /usr/local/lib/node-${expected_major}"
-  [ "$binary_path" = "${install_root}/bin/node" ] ||
-    devops_fatal "Node ${expected_major} binary path must remain ${install_root}/bin/node"
+  devops_validate_install_layout "Node ${expected_major}" "$install_root" "$binary_path"
 }
-

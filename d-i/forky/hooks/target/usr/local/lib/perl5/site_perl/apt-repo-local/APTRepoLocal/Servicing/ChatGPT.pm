@@ -16,9 +16,9 @@ use MIME::Base64 qw(encode_base64);
 use File::Basename qw(dirname);
 use Managed::PolicyLock qw(acquire_policy_lock with_policy_lock_handoff);
 use APTRepoLocal::Servicing::Atomic;
-use APTRepoLocal::Servicing::ArtifactLimits qw(MAX_DOWNLOAD_BYTES);
 
 has state => (is => 'ro', required => 1);
+has release_policy => (is => 'ro', required => 1);
 
 use constant ENABLE_STATE              => 'chatgpt.enabled';
 use constant ENABLE_STATE_CONTENT      => "addon/devops\n";
@@ -146,11 +146,18 @@ sub verify_deferred_prepare {
 }
 
 sub spec {
+    my ($self) = @_;
+    my $policy = $self->release_policy()->{generic_deb}{chatgpt};
+    ref($policy) eq 'HASH'
+        && defined($policy->{url})
+        && defined($policy->{maximum_bytes})
+        or die "ChatGPT release policy is unavailable\n";
     return {
         name       => 'chatgpt',
         label      => 'ChatGPT/Codex Desktop',
-        url        => 'https://persistent.oaistatic.com/codex-app-prod/linux/deb/latest/chatgpt_amd64.deb',
-        maximum    => MAX_DOWNLOAD_BYTES,
+        url        => $policy->{url},
+        minimum    => $policy->{minimum_bytes},
+        maximum    => $policy->{maximum_bytes},
         packages   => ['chatgpt'],
         validate_payload => 0,
         # The managed launcher uses native Wayland. Keep display-server and

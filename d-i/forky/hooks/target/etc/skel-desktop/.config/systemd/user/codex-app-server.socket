@@ -1,10 +1,10 @@
 [Unit]
 Description=Managed Codex app-server activation socket
 Documentation=man:systemd.socket(5)
-ConditionPathIsDirectory=/data/codex/sockets
+ConditionPathIsDirectory=__INSTALLER_DEVOPS_CODEX_SOCKETS_ROOT__
 
 [Socket]
-ListenStream=/data/codex/sockets/app-server-control.sock
+ListenStream=__INSTALLER_DEVOPS_CODEX_APP_SERVER_SOCKET__
 Accept=no
 SocketMode=0600
 DirectoryMode=0700

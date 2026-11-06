@@ -114,25 +114,25 @@ llama_validate_release_policy() {
   unset release_suffix
 
   llama_validate_sha256 LLAMA_RELEASE_SHA256 "$LLAMA_RELEASE_SHA256"
-  llama_validate_integer_range LLAMA_RELEASE_MINIMUM_BYTES "$LLAMA_RELEASE_MINIMUM_BYTES" 1 1073741824
+  llama_validate_integer_range LLAMA_RELEASE_MINIMUM_BYTES "$LLAMA_RELEASE_MINIMUM_BYTES" 1 "$LLAMA_RELEASE_MAXIMUM_EXTRACTED_BYTES"
   llama_validate_integer_range \
     LLAMA_RELEASE_MAXIMUM_EXTRACTED_BYTES \
     "$LLAMA_RELEASE_MAXIMUM_EXTRACTED_BYTES" \
     "$LLAMA_RELEASE_MINIMUM_BYTES" \
-    4294967296
+    "$LLAMA_RELEASE_MAXIMUM_EXTRACTED_BYTES"
   llama_validate_integer_range \
     LLAMA_RELEASE_MAXIMUM_MEMBERS \
     "$LLAMA_RELEASE_MAXIMUM_MEMBERS" \
     8 \
     256
 
-  case "${LLAMA_RELEASE_ARCHIVE_ROOT}:${LLAMA_RELEASE_REQUIRED_CLASS}" in
-    llama-cuda:addon/cuda-legacy) ;;
-    llama-ram:) ;;
-    *)
-      llama_fatal \
-        "unsupported llama release root/class contract: ${LLAMA_RELEASE_ARCHIVE_ROOT}:${LLAMA_RELEASE_REQUIRED_CLASS}"
-      ;;
+  case "$LLAMA_RELEASE_ARCHIVE_ROOT" in
+    ''|.|..|*[!ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789._-]*)
+      llama_fatal "LLAMA_RELEASE_ARCHIVE_ROOT must be a safe archive directory name" ;;
+  esac
+  case "$LLAMA_RELEASE_REQUIRED_CLASS" in
+    ''|addon/*) ;;
+    *) llama_fatal "LLAMA_RELEASE_REQUIRED_CLASS must be empty or an addon class reference" ;;
   esac
 }
 
@@ -201,8 +201,6 @@ llama_validate_policy() {
   llama_validate_abs_path LLAMA_SHARE_DIR "$LLAMA_SHARE_DIR"
   llama_validate_abs_path LLAMA_WRAPPER_PATH "$LLAMA_WRAPPER_PATH"
   llama_validate_abs_path LLAMA_MODEL_DIR "$LLAMA_MODEL_DIR"
-  [ "$LLAMA_ROOT" = /data/llama ] ||
-    llama_fatal "LLAMA_ROOT must remain /data/llama"
   [ "$LLAMA_BINARY_DIR" = "${LLAMA_ROOT}/bin" ] ||
     llama_fatal "LLAMA_BINARY_DIR must remain ${LLAMA_ROOT}/bin"
   [ "$LLAMA_METADATA_DIR" = "${LLAMA_ROOT}/metadata" ] ||
@@ -211,8 +209,6 @@ llama_validate_policy() {
     llama_fatal "LLAMA_SHARE_DIR must remain ${LLAMA_ROOT}/share"
   [ "$LLAMA_WRAPPER_PATH" = "${LLAMA_ROOT}/lib" ] ||
     llama_fatal "LLAMA_WRAPPER_PATH must remain ${LLAMA_ROOT}/lib"
-  [ "$LLAMA_MODEL_DIR" = /pool/cache/llama/models ] ||
-    llama_fatal "LLAMA_MODEL_DIR must remain /pool/cache/llama/models"
 
   llama_validate_bool LLAMA_FORCE_DOWNLOAD "${LLAMA_FORCE_DOWNLOAD-}"
   llama_validate_bool LLAMA_STRICT_RESOURCES "${LLAMA_STRICT_RESOURCES-}"

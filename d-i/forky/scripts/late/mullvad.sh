@@ -1,16 +1,6 @@
 #!/bin/sh
 # Shared late_command Mullvad package helper. This file is sourced, not executed.
 
-MULLVAD_CODE_SIGNING_FINGERPRINT=A1198702FC3E0A09A9AE5B75D5A1D4F266DE8DDF
-MULLVAD_CODE_SIGNING_KEY_URL=https://mullvad.net/media/mullvad-code-signing.asc
-MULLVAD_AMD64_DEB_URL=https://mullvad.net/en/download/app/deb/latest
-MULLVAD_ARM64_DEB_URL=https://mullvad.net/en/download/app/arm-deb/latest
-MULLVAD_KEY_MINIMUM_BYTES=1024
-MULLVAD_KEY_MAXIMUM_BYTES=131072
-MULLVAD_SIGNATURE_MINIMUM_BYTES=128
-MULLVAD_SIGNATURE_MAXIMUM_BYTES=131072
-MULLVAD_DEB_MINIMUM_BYTES=10485760
-MULLVAD_DEB_MAXIMUM_BYTES=536870912
 MULLVAD_RESOLVER_SOURCE=/tmp/installer-mullvad-resolv.conf
 MULLVAD_RESOLVED_STUB=/run/systemd/resolve/stub-resolv.conf
 MULLVAD_RESOLVER_MAXIMUM_BYTES=65536

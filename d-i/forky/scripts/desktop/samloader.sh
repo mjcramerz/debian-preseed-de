@@ -39,15 +39,15 @@ desktop_samloader_validate_policy() {
   : "${SAMLOADER_MAXIMUM_EXTRACTED_BYTES:?SAMLOADER_MAXIMUM_EXTRACTED_BYTES must be set}"
   : "${SAMLOADER_MAXIMUM_MEMBERS:?SAMLOADER_MAXIMUM_MEMBERS must be set}"
 
-  [ "$SAMLOADER_VERSION" = 2.2.0 ] ||
-    desktop_samloader_fail "version must remain pinned to 2.2.0"
+  printf '%s\n' "$SAMLOADER_VERSION" | grep -Eq '^[0-9]+\.[0-9]+\.[0-9]+$' ||
+    desktop_samloader_fail "version must be semantic"
   [ "$SAMLOADER_ARCHITECTURE" = amd64 ] ||
     desktop_samloader_fail "the managed Linux x86-64 release is unsupported for ${SAMLOADER_ARCHITECTURE}"
-  [ "$SAMLOADER_URL" = "https://github.com/topjohnwu/samloader-rs/releases/download/2.2.0/samloader-v2.2.0-linux-x86_64.zip" ] ||
-    desktop_samloader_fail "download URL must remain pinned to the official 2.2.0 Linux x86-64 release"
+  case "$SAMLOADER_URL" in
+    https://*/*) ;;
+    *) desktop_samloader_fail "download URL must match the configured Linux x86-64 release" ;;
+  esac
   desktop_samloader_validate_sha256 SAMLOADER_SHA256 "$SAMLOADER_SHA256"
-  [ "$SAMLOADER_SHA256" = f6029dcce75b8a66acc1975529085c53903f7cdb35505e0ac0a973f2652480ff ] ||
-    desktop_samloader_fail "SHA-256 must match the official GitHub release asset digest"
 
   desktop_samloader_validate_unsigned_integer \
     SAMLOADER_MINIMUM_BYTES \

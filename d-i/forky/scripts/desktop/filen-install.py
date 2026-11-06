@@ -204,12 +204,18 @@ def install(stage: Path, env: dict[str, str]) -> None:
     if command(['/usr/bin/dpkg', '--print-architecture']).decode().strip() != architecture:
         raise Error('Filen binary and target architectures differ')
     asset_arch = 'x64' if architecture == 'amd64' else 'arm64'
-    url = f'https://github.com/FilenCloudDienste/filen-cli/releases/download/v{version}/filen-cli-v{version}-linux-{asset_arch}'
+    url = env['FILEN_CLI_URL']
+    parsed_url = urllib.parse.urlsplit(url)
+    expected_name = f'filen-cli-v{version}-linux-{asset_arch}'
+    if (parsed_url.scheme != 'https' or not parsed_url.netloc or parsed_url.query or
+            parsed_url.fragment or parsed_url.path.rsplit('/', 1)[-1] != expected_name):
+        raise Error('invalid pinned release URL')
     sha = env['FILEN_CLI_SHA256']
-    if env['FILEN_CLI_URL'] != url or not re.fullmatch(r'[0-9a-f]{64}', sha):
-        raise Error('invalid pinned release URL or digest')
+    if not re.fullmatch(r'[0-9a-f]{64}', sha):
+        raise Error('invalid pinned release digest')
     maximum = int(env['FILEN_CLI_MAXIMUM_BYTES'])
-    if not 1048576 <= maximum <= 411041792:
+    minimum = int(env['FILEN_CLI_MINIMUM_BYTES'])
+    if not 0 < minimum <= maximum:
         raise Error('invalid release download size bound')
     root = path_value(env['NETWORK_SHARING_ROOT_PATH'])
     home = path_value(env['ACCOUNT_HOME'])

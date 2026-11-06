@@ -39,6 +39,14 @@ desktop_stage_compz() (
     "$helper" 0700
   run_in_target "install pinned compz FLZMA2 codec" \
     /usr/bin/env -i HOME=/root LC_ALL=C PATH=/usr/sbin:/usr/bin:/sbin:/bin \
+    LABWC_7ZIP_ZSTD_TAG="$LABWC_7ZIP_ZSTD_TAG" \
+    LABWC_7ZIP_ZSTD_AMD64_URL="$LABWC_7ZIP_ZSTD_AMD64_URL" \
+    LABWC_7ZIP_ZSTD_AMD64_SHA256="$LABWC_7ZIP_ZSTD_AMD64_SHA256" \
+    LABWC_7ZIP_ZSTD_ARM64_URL="$LABWC_7ZIP_ZSTD_ARM64_URL" \
+    LABWC_7ZIP_ZSTD_ARM64_SHA256="$LABWC_7ZIP_ZSTD_ARM64_SHA256" \
+    LABWC_7ZIP_ZSTD_MAXIMUM_BYTES="$LABWC_7ZIP_ZSTD_MAXIMUM_BYTES" \
+    LABWC_7ZIP_ZSTD_MAXIMUM_EXTRACTED_BYTES="$LABWC_7ZIP_ZSTD_MAXIMUM_EXTRACTED_BYTES" \
+    LABWC_7ZIP_ZSTD_MAXIMUM_MEMBERS="$LABWC_7ZIP_ZSTD_MAXIMUM_MEMBERS" \
     /usr/bin/timeout --signal=TERM --kill-after=10s 600s \
     /usr/bin/python3 -I -B "$helper"
   desktop_log "staged_compz isolated_archive_tools=yes flzma2=pinned_prebuilt"

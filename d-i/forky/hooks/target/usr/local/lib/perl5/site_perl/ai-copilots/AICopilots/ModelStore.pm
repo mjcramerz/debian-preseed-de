@@ -329,9 +329,9 @@ sub _validate_download_request {
     my ($self, $family, $url, $filename, $sha256, $expected_bytes) = @_;
     my $policy = $self->_family_policy($family);
     defined($url) && !ref($url) && length($url) <= 2048
-        && $url =~ m{\Ahttps://huggingface\.co/[A-Za-z0-9_./?&=%+,~#:@-]+\z}
+        && $url =~ m{\Ahttps://[^\s"\\]+\z}
         && $url !~ /[\0\r\n\s]/
-        or _fatal('model URL must be a credential-free Hugging Face HTTPS URL');
+        or _fatal('model URL must be a credential-free HTTPS URL');
     defined($filename) && !ref($filename) && $filename =~ $policy->{filename}
         && $filename !~ /\.\./
         or _fatal('model filename is invalid');

@@ -24,18 +24,20 @@ desktop_install_codex_standalone() (
   : "${DEVOPS_CODEX_ROOT:?DEVOPS_CODEX_ROOT must be set before Codex standalone installation}"
   : "${DEVOPS_CODEX_BINARY_PATH:?DEVOPS_CODEX_BINARY_PATH must be set before Codex standalone installation}"
   : "${DEVOPS_CODEX_USER_ROOT:?DEVOPS_CODEX_USER_ROOT must be set before Codex standalone installation}"
+  : "${DEVOPS_CODEX_PACKAGES_ROOT:?DEVOPS_CODEX_PACKAGES_ROOT must be set before Codex standalone installation}"
   : "${DEVOPS_CODEX_HOME:?DEVOPS_CODEX_HOME must be set before Codex standalone installation}"
   : "${DEVOPS_CODEX_STANDALONE_INSTALLER_URL:?DEVOPS_CODEX_STANDALONE_INSTALLER_URL must be set before Codex standalone installation}"
+  : "${DEVOPS_CODEX_STANDALONE_INSTALLER_SHA256:?DEVOPS_CODEX_STANDALONE_INSTALLER_SHA256 must be set before Codex standalone installation}"
   : "${DEVOPS_CODEX_STANDALONE_INSTALLER_MAXIMUM_BYTES:?DEVOPS_CODEX_STANDALONE_INSTALLER_MAXIMUM_BYTES must be set before Codex standalone installation}"
 
-  [ "$DEVOPS_CODEX_ROOT" = /data/codex ] ||
-    fatal "Codex root is not approved for standalone installation: $DEVOPS_CODEX_ROOT"
-  [ "$DEVOPS_CODEX_HOME" = /data/codex/usr/home ] ||
-    fatal "Codex home is not approved for standalone installation: $DEVOPS_CODEX_HOME"
+  case "$DEVOPS_CODEX_HOME" in
+    "$DEVOPS_CODEX_USER_ROOT"/*) ;;
+    *) fatal "Codex home must be below the configured Codex user root: $DEVOPS_CODEX_HOME" ;;
+  esac
 
   installer_helper=/usr/local/bin/codex-standalone-install
   session_helper="${DEVOPS_CODEX_ROOT}/.installer-codex-standalone.session.py"
-  packages_root="${DEVOPS_CODEX_ROOT}/packages"
+  packages_root="$DEVOPS_CODEX_PACKAGES_ROOT"
   installer_host_path=$(target_asset_host_path "$installer_helper")
   session_host_path=$(target_asset_host_path "$session_helper")
   account_home_host_path=$(target_asset_host_path "$ACCOUNT_HOME")
@@ -91,11 +93,13 @@ desktop_install_codex_standalone() (
       "$ACCOUNT_USERNAME" "$ACCOUNT_HOME" \
       "$installer_helper" \
       "$DEVOPS_CODEX_STANDALONE_INSTALLER_URL" \
+      "$DEVOPS_CODEX_STANDALONE_INSTALLER_SHA256" \
       "$DEVOPS_CODEX_STANDALONE_INSTALLER_MAXIMUM_BYTES" \
       "$DEVOPS_CODEX_HOME" "$packages_root"
 
   packages_host_path=$(target_asset_host_path "$packages_root")
-  home_packages_host_path=$(target_asset_host_path "${DEVOPS_CODEX_HOME}/packages")
+  packages_name=${DEVOPS_CODEX_PACKAGES_ROOT##*/}
+  home_packages_host_path=$(target_asset_host_path "${DEVOPS_CODEX_HOME}/${packages_name}")
   [ -d "$packages_host_path" ] && [ ! -L "$packages_host_path" ] ||
     fatal "official Codex standalone package root is missing after installation"
   [ -L "$home_packages_host_path" ] &&

@@ -20,8 +20,10 @@ desktop_scrcpy_validate_policy() {
     desktop_scrcpy_fail "the pinned Linux x86-64 release requires an amd64 target"
   [ "$SCRCPY_TAG" = "v${SCRCPY_VERSION}" ] ||
     desktop_scrcpy_fail "release tag must match the pinned version"
-  [ "$SCRCPY_URL" = "https://github.com/Genymobile/scrcpy/releases/download/${SCRCPY_TAG}/scrcpy-linux-x86_64-${SCRCPY_TAG}.tar.gz" ] ||
-    desktop_scrcpy_fail "download URL must remain the official GitHub release archive"
+  case "$SCRCPY_URL" in
+    https://*/*) ;;
+    *) desktop_scrcpy_fail "download URL must be the configured release archive" ;;
+  esac
   case "$SCRCPY_SHA256" in
     ''|*[!0123456789abcdef]*)
       desktop_scrcpy_fail "archive SHA-256 must be 64 lowercase hexadecimal characters"

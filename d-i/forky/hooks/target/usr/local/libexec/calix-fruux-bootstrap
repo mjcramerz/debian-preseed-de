@@ -1,8 +1,7 @@
 #!/usr/bin/python3 -I
 """Provision the Calix account in firstboot; deliver its secret at session startup.
 
-Account and keyring contracts are pinned to Calix 0.8.0, commit
-56fb3aae672384af2a304f69815c3a8d601e7f35. No network discovery happens here.
+No network discovery happens here.
 The native application's normal startup completes its additive SQLite schema.
 """
 import fcntl
@@ -15,6 +14,7 @@ import stat
 import sys
 import tempfile
 import time
+import urllib.parse
 
 
 class Error(ValueError):
@@ -69,14 +69,25 @@ def private_json(path):
     return json.loads(raw), before
 
 
-def publish_state(config, username, stage):
+def server_value(value):
+    if not isinstance(value, str) or not value:
+        raise Error('invalid calendar server')
+    parsed = urllib.parse.urlsplit(value)
+    if (parsed.scheme != 'https' or not parsed.hostname or parsed.username
+            or parsed.password or parsed.query or parsed.fragment
+            or parsed.port not in (None, 443) or parsed.path not in ('', '/')):
+        raise Error('invalid calendar server')
+    return value.rstrip('/')
+
+
+def publish_state(config, username, server, stage):
     destination = config / 'fruux-state.json'
     if destination.exists() or destination.is_symlink():
         owned(destination, private=True)
     fd, temporary = tempfile.mkstemp(prefix='.fruux-state-', dir=config)
     try:
         with os.fdopen(fd, 'wb') as stream:
-            stream.write((json.dumps({'version': 1, 'server': 'https://dav.fruux.com',
+            stream.write((json.dumps({'version': 1, 'server': server,
                                       'username': username, 'stage': stage}) + '\n').encode())
             stream.flush()
             os.fsync(stream.fileno())
@@ -97,7 +108,7 @@ def complete(config, bootstrap):
     except FileNotFoundError:
         raise Pending('Fruux completion is pending') from None
     if (not isinstance(account, dict) or set(account) != {'version', 'username', 'server'}
-            or account.get('version') != 1 or account.get('server') != 'https://dav.fruux.com'
+            or account.get('version') != 1 or server_value(account.get('server')) != account.get('server')
             or not isinstance(account.get('username'), str) or not account['username']
             or state != {**account, 'stage': 'credentials-ready'}):
         raise Error('invalid Fruux completion receipt')
@@ -149,8 +160,8 @@ def main():
                 or username != username.strip() or ':' in username
                 or any(ord(c) < 32 or ord(c) == 127 for c in username) or '\0' in password):
             raise Error('invalid Fruux input values')
-        server = 'https://dav.fruux.com'
         account, _ = private_json(config / 'fruux-account.json')
+        server = server_value(account.get('server'))
         expected = {'version': 1, 'server': server, 'username': username}
         if account != expected:
             raise Error('Fruux account identity differs from installer input')
@@ -209,7 +220,7 @@ def main():
             os.close(fd)
         sync_directory(database.parent)
         if provision_only:
-            publish_state(config, username, 'account-provisioned')
+            publish_state(config, username, server, 'account-provisioned')
             return
         # The unit's start deadline bounds keyring unlock prompts and all GI I/O.
         import gi
@@ -247,7 +258,7 @@ def main():
             raise Error('Fruux input changed during setup')
         # Publish readiness before unlinking. If interrupted, plaintext still
         # present always defers cleanup and delivery safely checks readback again.
-        publish_state(config, username, 'credentials-ready')
+        publish_state(config, username, server, 'credentials-ready')
         path.unlink()
         sync_directory(config)
     finally:

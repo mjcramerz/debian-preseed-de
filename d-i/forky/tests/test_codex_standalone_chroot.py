@@ -147,9 +147,15 @@ ln -s "$CODEX_HOME/packages/standalone/releases/0.153.3-x86_64-unknown-linux-mus
         # Model the reviewed script's digest with this fixture payload. The
         # actual hash operation remains real, entirely inside the fixture.
         source = helper.read_text()
-        pin = 'installer_sha256=95d14ccaba915e52a3f0cc590638ca5ac510086ff6a23dc9ac9f77e957403a93'
-        self.assertEqual(source.count(pin), 1)
-        helper.write_text(source.replace(pin, 'installer_sha256=' + hashlib.sha256(payload.encode()).hexdigest(), 1))
+        pin_prefix = 'installer_sha256='
+        self.assertEqual(source.count(pin_prefix), 1)
+        pin_line = next(line for line in source.splitlines() if line.startswith(pin_prefix))
+        helper.write_text(source.replace(
+            pin_line,
+            pin_prefix + hashlib.sha256(payload.encode()).hexdigest(),
+            1,
+        ))
+        self.installer_sha256 = hashlib.sha256(payload.encode()).hexdigest()
         if digest_error:
             payload += '# fixture corruption after pinning\n'
 
@@ -180,7 +186,8 @@ cat > "$output" <<'PAYLOAD'
         return subprocess.run(
             payload_installed_argv([
                 shutil.which('chroot'), '--userspec=65534:65534', str(root),
-                '/bin/sh', '/installer', 'https://raw.githubusercontent.com/openai/codex/89461ea6833832b0551ce24ee32205824d5c108d/scripts/install/install.sh',
+                '/bin/sh', '/installer', 'https://fixture.invalid/installer',
+                self.installer_sha256,
                 '1048576', '/data/codex/usr/home', '/data/codex/packages',
             ]),
             env={

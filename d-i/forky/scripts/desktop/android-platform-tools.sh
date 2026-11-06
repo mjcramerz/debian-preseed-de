@@ -27,8 +27,17 @@ desktop_android_platform_tools_validate_policy() {
   [ "$ANDROID_PLATFORM_TOOLS_ARCHITECTURE" = amd64 ] ||
     desktop_android_platform_tools_fail \
       "Google's Linux Platform-Tools archive is unsupported for ${ANDROID_PLATFORM_TOOLS_ARCHITECTURE}"
-  [ "$ANDROID_PLATFORM_TOOLS_URL" = "https://dl.google.com/android/repository/platform-tools-latest-linux.zip" ] ||
-    desktop_android_platform_tools_fail "download URL must remain the official Google latest Linux archive"
+  case "$ANDROID_PLATFORM_TOOLS_URL" in
+    https://*/*) ;;
+    *) desktop_android_platform_tools_fail "download URL must be an HTTPS archive URL" ;;
+  esac
+  android_platform_tools_filename=${ANDROID_PLATFORM_TOOLS_URL##*/}
+  [ -n "$android_platform_tools_filename" ] ||
+    desktop_android_platform_tools_fail "download URL has no archive filename"
+  case "$android_platform_tools_filename" in
+    *.zip) ;;
+    *) desktop_android_platform_tools_fail "download URL must name a ZIP archive" ;;
+  esac
 
   desktop_android_platform_tools_validate_unsigned_integer \
     ANDROID_PLATFORM_TOOLS_MINIMUM_BYTES \
@@ -90,7 +99,8 @@ desktop_install_android_platform_tools() {
     desktop_android_platform_tools_preflight_target_architecture
 
   platform_tools_work_dir=$(target_private_stage_dir android-platform-tools) || return 1
-  platform_tools_archive="${platform_tools_work_dir}/platform-tools.zip"
+  platform_tools_filename=${ANDROID_PLATFORM_TOOLS_URL##*/}
+  platform_tools_archive="${platform_tools_work_dir}/${platform_tools_filename}"
   platform_tools_extract_dir="${platform_tools_work_dir}/extract"
   platform_tools_archive_host="/target${platform_tools_archive}"
   platform_tools_extract_host="/target${platform_tools_extract_dir}"

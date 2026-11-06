@@ -1,17 +1,18 @@
 #!/bin/sh
+# shellcheck disable=SC2154
 # Sourced installer module; edit this file directly.
 
 devops_install_pinned_codex() (
   # A separate, short-lived SSH agent authenticates this clone, before the
   # release publisher runs. No agent capability is passed to Codex itself.
   umask 077
-  clone_parent=$(mktemp -d "${target_root}/data/codex/.home-clone.XXXXXXXX") ||
+  clone_parent=$(mktemp -d "${target_root}${DEVOPS_CODEX_ROOT}/.home-clone.XXXXXXXX") ||
     devops_fatal "unable to allocate private Codex clone staging directory"
   trap 'rm -rf -- "$clone_parent"' 0
   trap 'exit 129' 1
   trap 'exit 130' 2
   trap 'exit 143' 15
-  # /data/codex intentionally remains root:devops 3770. mktemp inherits
+  # The configured Codex root intentionally remains root:devops 3770. mktemp inherits
   # its setgid bit (2700); GNU chmod 0700 alone preserves that bit. Normalize
   # ONLY this new private stage, never the shared root or the reader's policy.
   [ -d "$clone_parent" ] && [ ! -L "$clone_parent" ] ||
@@ -231,28 +232,36 @@ case "$archive_schema_member" in
     codex_fatal "Codex archive schema member is malformed: $archive_schema_member"
     ;;
 esac
-[ "$codex_root" = /data/codex ] ||
-  codex_fatal "Codex root is not approved: $codex_root"
-[ "$binary_path" = "$codex_root/share/bin/codex" ] ||
-  codex_fatal "Codex binary path is not approved: $binary_path"
+case "$binary_path" in
+  "$codex_root"/*) ;;
+  *) codex_fatal "Codex binary path must be below the configured Codex root: $binary_path" ;;
+esac
 [ "$schema_path" = "$codex_root/$archive_schema_member" ] ||
   codex_fatal "Codex schema path does not match the profile-owned archive schema member"
-[ "$wrapper_path" = "$codex_root/lib/codex" ] ||
-  codex_fatal "Codex wrapper path is not approved: $wrapper_path"
-[ "$user_root" = "$codex_root/usr" ] ||
-  codex_fatal "Codex user root is not approved: $user_root"
-[ "$system_config_dir" = /etc/codex ] ||
-  codex_fatal "Codex system configuration path is not approved: $system_config_dir"
-[ "$log_dir" = "$codex_root/log" ] ||
-  codex_fatal "Codex log path is not approved: $log_dir"
-[ "$sqlite_home" = "$codex_root/sqlite" ] ||
-  codex_fatal "Codex SQLite path is not approved: $sqlite_home"
-[ "$runtime_root" = "$codex_root/runtime" ] ||
-  codex_fatal "Codex runtime path is not approved: $runtime_root"
-[ "$repository_url" = git@gitlab.com:computes/misc/codex-home.git ] ||
-  codex_fatal "Codex repository URL is not approved"
-[ "$repository_branch" = mcr/main ] ||
-  codex_fatal "Codex repository branch is not approved"
+for codex_derived_path in \
+  "$wrapper_path" \
+  "$user_root" \
+  "$log_dir" \
+  "$sqlite_home" \
+  "$runtime_root"
+do
+  case "$codex_derived_path" in
+    "$codex_root"/*) ;;
+    *) codex_fatal "Codex derived paths must be below the configured Codex root" ;;
+  esac
+done
+unset codex_derived_path
+case "$system_config_dir" in
+  /*) ;;
+  *) codex_fatal "Codex system configuration path must be absolute" ;;
+esac
+case "$repository_url" in
+  git@*:*|ssh://git@*/*|https://*) ;;
+  *) codex_fatal "Codex repository URL has an unsupported scheme" ;;
+esac
+case "$repository_branch" in
+  ''|*/*/*|*[!A-Za-z0-9._/-]*) codex_fatal "Codex repository branch is malformed" ;;
+esac
 [ "$agents_path" = "$user_root/agents" ] ||
   codex_fatal "Codex agents path is not approved: $agents_path"
 [ "$home_path" = "$user_root/home" ] ||
@@ -463,7 +472,7 @@ unset first_extracted_binary hidden_extracted_binary unsafe_extracted_binary
 
 repository_staging="${staging_dir}/repository"
 case "$repository_clone_source" in
-  /data/codex/.home-clone.*/repository) ;;
+  "$codex_root"/.home-clone.*/repository) ;;
   *) codex_fatal "unapproved private Codex clone source" ;;
 esac
 [ -d "$repository_clone_source" ] && [ ! -L "$repository_clone_source" ] ||
@@ -475,9 +484,9 @@ actual_repository_url=$(git -C "$repository_staging" remote get-url origin)
   codex_fatal "cloned Codex home repository remote does not match policy"
 actual_repository_branch=$(git -C "$repository_staging" symbolic-ref --short HEAD)
 [ "$actual_repository_branch" = "$repository_branch" ] ||
-  codex_fatal "Codex home is not a named mcr/main branch checkout"
+  codex_fatal "Codex home is not a named ${repository_branch} branch checkout"
 [ "$(git -C "$repository_staging" rev-parse --abbrev-ref "@{upstream}")" = "origin/$repository_branch" ] ||
-  codex_fatal "Codex home does not track origin/mcr/main"
+  codex_fatal "Codex home does not track origin/$repository_branch"
 
 for required_repository_dir in agents etc home skills; do
   [ -d "$repository_staging/$required_repository_dir" ] &&

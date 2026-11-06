@@ -1,13 +1,13 @@
 [Unit]
 Description=Managed Codex app-server backend (repository build)
 Documentation=https://developers.openai.com/codex/app-server
-ConditionFileIsExecutable=/data/codex/lib/codex
-ConditionFileIsExecutable=/data/codex/share/bin/codex
-ConditionFileIsExecutable=/usr/local/libexec/codex-app-server-wait-ready
-ConditionPathIsDirectory=/data/codex/usr/home
-ConditionPathIsDirectory=/data/codex/sockets
-ConditionPathIsDirectory=/data/codex/usr/home/app-server-control
-ConditionPathIsDirectory=/data/codex/usr/home/app-server-daemon
+ConditionFileIsExecutable=__INSTALLER_DEVOPS_CODEX_WRAPPER_PATH__
+ConditionFileIsExecutable=__INSTALLER_DEVOPS_CODEX_BINARY_PATH__
+ConditionFileIsExecutable=__INSTALLER_DEVOPS_CODEX_APP_SERVER_READY_HELPER__
+ConditionPathIsDirectory=__INSTALLER_DEVOPS_CODEX_HOME__
+ConditionPathIsDirectory=__INSTALLER_DEVOPS_CODEX_SOCKETS_ROOT__
+ConditionPathIsDirectory=__INSTALLER_DEVOPS_CODEX_APP_SERVER_CONTROL_DIR__
+ConditionPathIsDirectory=__INSTALLER_DEVOPS_CODEX_HOME__/app-server-daemon
 # Keep the backend alive across proxy idle exits and direct administrative starts.
 # Stopping/restarting the public listener still propagates to this backend.
 PartOf=codex-app-server.socket
@@ -20,22 +20,22 @@ Type=exec
 # User managers do not source shell profiles. The wrapper below applies the
 # complete 71-devops-de.sh environment; seed identity before any Exec command.
 Environment=HOME=%h USER=%u LOGNAME=%u XDG_RUNTIME_DIR=%t
-Environment=CODEX_HOME=/data/codex/usr/home
+Environment=CODEX_HOME=__INSTALLER_DEVOPS_CODEX_HOME__
 Environment=XDG_CONFIG_HOME=%h/.config XDG_CACHE_HOME=%h/.cache
 Environment=XDG_DATA_HOME=%h/.local/share XDG_STATE_HOME=%h/.local/state
 # The non-secret policy is optional, including during stop/upgrade operations.
 # Keep its safe allowlist default even when the override file is absent.
 Environment=CODEX_APP_SERVER_SECRET_ENV_NAMES=CODEX_MCP_API_KEY
-EnvironmentFile=-/etc/codex/app-server.env
+EnvironmentFile=-__INSTALLER_DEVOPS_CODEX_APP_SERVER_ENVIRONMENT__
 # CODEX_HOME/auth.json is created by codex login before backend use.
 # The wrapper mounts it read-only; never synthesize or load it as a credential.
-LoadCredential=codex-mcp.env:/data/codex/credentials/mcp.env
+LoadCredential=codex-mcp.env:__INSTALLER_DEVOPS_CODEX_CREDENTIALS_ROOT__/mcp.env
 # The launched wrapper reads CREDENTIALS_DIRECTORY after credential setup.
 WorkingDirectory=%h/Workspace
-ExecStartPre=/usr/bin/rm -f -- /data/codex/sockets/app-server-backend.sock
-ExecStart=/usr/local/libexec/rsyslog-app-run codex-app-server -- /data/codex/lib/codex app-server --listen unix:///data/codex/sockets/app-server-backend.sock
-ExecStartPost=/usr/local/libexec/rsyslog-app-run codex-app-server -- /usr/local/libexec/codex-app-server-wait-ready
-ExecStopPost=/usr/bin/rm -f -- /data/codex/sockets/app-server-backend.sock
+ExecStartPre=/usr/bin/rm -f -- __INSTALLER_DEVOPS_CODEX_APP_SERVER_BACKEND_SOCKET__
+ExecStart=/usr/local/libexec/rsyslog-app-run codex-app-server -- __INSTALLER_DEVOPS_CODEX_WRAPPER_PATH__ app-server --listen unix://__INSTALLER_DEVOPS_CODEX_APP_SERVER_BACKEND_SOCKET__
+ExecStartPost=/usr/local/libexec/rsyslog-app-run codex-app-server -- __INSTALLER_DEVOPS_CODEX_APP_SERVER_READY_HELPER__
+ExecStopPost=/usr/bin/rm -f -- __INSTALLER_DEVOPS_CODEX_APP_SERVER_BACKEND_SOCKET__
 # The wrapper performs bounded cleanup, then reports a manager-requested
 # SIGTERM as the conventional shell status 143. Listener shutdown is clean.
 SuccessExitStatus=143 SIGTERM

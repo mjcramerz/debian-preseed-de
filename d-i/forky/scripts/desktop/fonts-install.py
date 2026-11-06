@@ -27,10 +27,6 @@ from pathlib import Path, PurePosixPath
 CACHE = Path('/var/cache/installer-desktop-fonts')
 SKEL = Path('/etc/skel-desktop')
 NAMES = ('FiraCode', 'NerdFontsSymbolsOnly', 'ProFont', 'MicrosoftAptosFonts', 'MicrosoftLocalFonts')
-MAX_ARCHIVE = 256 * 1024 * 1024
-MAX_EXPANDED = 1024 * 1024 * 1024
-MAX_MEMBER = 128 * 1024 * 1024
-MAX_MEMBERS = 12000
 MANIFEST = 'release-manifest.json'
 GROUPS = {
     "terminal": ("FiraCode", "NerdFontsSymbolsOnly", "ProFont"),
@@ -91,13 +87,28 @@ def mkdir_below(base: Path, relative: str, uid: int, mode: int = 0o755) -> Path:
     return current
 
 
+def configured_limits() -> tuple[int, int, int, int]:
+    names = (
+        'LABWC_FONTS_MAXIMUM_ARCHIVE_BYTES',
+        'LABWC_FONTS_MAXIMUM_EXPANDED_BYTES',
+        'LABWC_FONTS_MAXIMUM_MEMBER_BYTES',
+        'LABWC_FONTS_MAXIMUM_MEMBERS',
+    )
+    try:
+        values = tuple(int(os.environ[name]) for name in names)
+    except (KeyError, ValueError) as exc:
+        raise ValueError('invalid configured font archive limits') from exc
+    if not all(value > 0 for value in values) or values[0] > values[1] or values[2] > values[1]:
+        raise ValueError('invalid configured font archive limits')
+    return values
+
+
 def validate_policy(triples: list[list[str]]) -> list[dict[str, str]]:
     if len(triples) != len(NAMES) or {row[0] for row in triples} != set(NAMES):
         raise ValueError('exactly the five configured font archives are required')
     policy = []
     for name, url, sha in triples:
-        pattern = (r'https://github\.com/mjcramerz/fonts/releases/download/'
-                   r'[A-Za-z0-9][A-Za-z0-9._-]*/' + re.escape(name) + r'\.tar\.xz')
+        pattern = (r'https://[^\s/]+(?:/[^\s/]+)*/' + re.escape(name) + r'\.tar\.xz')
         if not re.fullmatch(pattern, url) or not re.fullmatch(r'[0-9a-f]{64}', sha):
             raise ValueError('invalid pinned font URL or SHA-256 for ' + name)
         policy.append({'name': name, 'url': url, 'sha256': sha})
@@ -144,19 +155,21 @@ def flush_tree(root: Path) -> None:
         sync_dir(Path(directory))
 
 
-def extract_archive(archive: Path, destination: Path, sha: str) -> None:
-    if archive.stat().st_size > MAX_ARCHIVE or digest(archive) != sha:
+def extract_archive(archive: Path, destination: Path, sha: str,
+                    limits: tuple[int, int, int, int]) -> None:
+    maximum_archive, maximum_expanded, maximum_member, maximum_members = limits
+    if archive.stat().st_size > maximum_archive or digest(archive) != sha:
         raise ValueError('font archive size or SHA-256 mismatch')
     # Iterate streaming members to bound memory. Files are written only in a
     # private staging directory; a later invalid member can never be published.
     total = count = font_count = 0
     seen = set()
     with lzma.open(archive, 'rb') as decompressed, tarfile.open(
-            fileobj=BoundedStream(decompressed, MAX_EXPANDED + MAX_MEMBERS * 2048),
+            fileobj=BoundedStream(decompressed, maximum_expanded + maximum_members * 2048),
             mode='r|') as source:
         for entry in source:
             count += 1
-            if count > MAX_MEMBERS:
+            if count > maximum_members:
                 raise ValueError('font archive has too many members')
             relative = member_path(entry.name)
             if relative == PurePosixPath('.') and entry.isdir():
@@ -166,10 +179,10 @@ def extract_archive(archive: Path, destination: Path, sha: str) -> None:
             seen.add(relative)
             if not (entry.isdir() or entry.isfile()) or entry.issparse():
                 raise ValueError('links, devices and sparse archive entries are forbidden')
-            if entry.size < 0 or entry.size > MAX_MEMBER:
+            if entry.size < 0 or entry.size > maximum_member:
                 raise ValueError('oversized font archive member')
             total += entry.size
-            if total > MAX_EXPANDED:
+            if total > maximum_expanded:
                 raise ValueError('font archive expands beyond the limit')
             target = destination.joinpath(*relative.parts)
             # No archive symlinks exist; all directories remain private until
@@ -241,17 +254,18 @@ def verify_generation(root: Path, policy: list[dict[str, str]], uid: int | None 
         raise ValueError(f'modified/incomplete font generation preserved: {root}')
 
 
-def download(url: str, destination: Path, sha: str) -> None:
+def download(url: str, destination: Path, sha: str, maximum_archive: int) -> None:
     subprocess.run(['/usr/bin/curl', '--fail', '--location', '--silent', '--show-error',
                     '--proto', '=https', '--proto-redir', '=https', '--tlsv1.2',
                     '--retry', '3', '--connect-timeout', '20', '--max-time', '600',
-                    '--max-filesize', str(MAX_ARCHIVE), '--output', str(destination),
+                    '--max-filesize', str(maximum_archive), '--output', str(destination),
                     '--', url], check=True, env={'PATH': '/usr/bin:/bin', 'LC_ALL': 'C'})
-    if destination.stat().st_size > MAX_ARCHIVE or digest(destination) != sha:
+    if destination.stat().st_size > maximum_archive or digest(destination) != sha:
         raise ValueError('downloaded font archive failed SHA-256 verification')
 
 
-def prepare_generation(cache: Path, policy: list[dict[str, str]]) -> Path:
+def prepare_generation(cache: Path, policy: list[dict[str, str]],
+                       limits: tuple[int, int, int, int]) -> Path:
     releases = mkdir_below(cache, 'releases', os.geteuid())
     generation = releases / policy_id(policy)
     if os.path.lexists(generation):
@@ -263,10 +277,10 @@ def prepare_generation(cache: Path, policy: list[dict[str, str]]) -> Path:
         output.mkdir(mode=0o700)
         for item in policy:
             archive = stage / (item['name'] + '.tar.xz')
-            download(item['url'], archive, item['sha256'])
+            download(item['url'], archive, item['sha256'], limits[0])
             destination = output / item['name']
             destination.mkdir(mode=0o700)
-            extract_archive(archive, destination, item['sha256'])
+            extract_archive(archive, destination, item['sha256'], limits)
             archive.unlink()
         seal(output, policy)
         os.rename(output, generation)
@@ -454,6 +468,7 @@ def main(argv: list[str]) -> int:
     if account.pw_uid == 0 or args.home != account.pw_dir or not Path(args.home).is_absolute():
         raise ValueError('font account/home must match the non-root passwd entry')
     policy = validate_policy(args.archive)
+    limits = configured_limits()
     os.umask(0o022)
     checked_directory(CACHE.parent, 0)
     checked_directory(SKEL.parent, 0)
@@ -466,7 +481,7 @@ def main(argv: list[str]) -> int:
         if not stat.S_ISREG(info.st_mode) or info.st_uid or info.st_nlink != 1 or info.st_mode & 0o077:
             raise ValueError('unsafe font installation lock')
         fcntl.flock(lock, fcntl.LOCK_EX)
-        source = prepare_generation(CACHE, policy)
+        source = prepare_generation(CACHE, policy, limits)
         current, changed = publish(SKEL, source, policy)
         skel_cache = mkdir_below(CACHE, 'skel-cache', 0, 0o700)
         font_cache(SKEL, current, skel_cache, policy_id(policy), changed)

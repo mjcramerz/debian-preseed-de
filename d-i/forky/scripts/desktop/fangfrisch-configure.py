@@ -15,7 +15,8 @@ import sys
 import tempfile
 
 DESTINATION = Path("/etc/fangfrisch.conf")
-FEED = "https://urlhaus-api.abuse.ch/v2/files/exports/${auth_key}/urlhaus_clamav.ndb"
+FEED_BASE = os.environ.get("FANGFRISCH_URLHAUS_FEED_BASE", "")
+SANESECURITY_PREFIX = os.environ.get("FANGFRISCH_SANESECURITY_PREFIX", "")
 
 
 class PublicationFailure(Exception):
@@ -78,8 +79,11 @@ def configure(stage: Path) -> None:
     config = configparser.ConfigParser(interpolation=configparser.ExtendedInterpolation())
     config.read_string(read_private(stage / "fangfrisch.conf", 16384).decode("utf-8"))
     config.set("urlhaus", "auth_key", key)
+    feed = f"{FEED_BASE}/${{auth_key}}/urlhaus_clamav.ndb"
     config.set("urlhaus", "enabled", "yes" if key else "no")
-    if (config.get("urlhaus", "url_urlhaus", raw=True) != FEED
+    if (not FEED_BASE or not SANESECURITY_PREFIX
+            or config.get("sanesecurity", "prefix") != SANESECURITY_PREFIX
+            or config.get("urlhaus", "url_urlhaus", raw=True) != feed
             or config.defaults().get("log_format") != "%(levelname)s: %(message)s"
             or any(config.get(section, "log_method") != "console" for section in config)):
         raise ValueError("invalid feed or logging policy")

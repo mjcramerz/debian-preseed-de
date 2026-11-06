@@ -65,9 +65,8 @@ software_install_tor_browser() (
   software_validate_release_version SOFTWARE_TOR_BROWSER_VERSION "$tor_version"
   software_validate_sha256 SOFTWARE_TOR_BROWSER_SHA256 "$tor_sha"
   software_validate_sha256 SOFTWARE_TOR_BROWSER_KEY_SHA256 "$tor_key_sha"
-  [ "$tor_url" = "https://dist.torproject.org/torbrowser/${tor_version}/tor-browser-linux-x86_64-${tor_version}.tar.xz" ] ||
-    software_fatal "Tor Browser URL differs from the pinned release"
-  tor_archive_url="https://archive.torproject.org/tor-package-archive/torbrowser/${tor_version}/tor-browser-linux-x86_64-${tor_version}.tar.xz"
+  case "$tor_url" in https://*/*) ;; *) software_fatal "Tor Browser URL must be an HTTPS release URL" ;; esac
+  tor_archive_url=${SOFTWARE_TOR_BROWSER_ARCHIVE_FALLBACK_URL:?SOFTWARE_TOR_BROWSER_ARCHIVE_FALLBACK_URL must be set}
   software_install_tor_media_runtime
   tor_archive="${work_dir}/tor-browser.tar.xz"
   tor_signature="${work_dir}/tor-browser.tar.xz.asc"
@@ -83,20 +82,20 @@ software_install_tor_browser() (
     "$tor_url" \
     "$tor_archive_url" \
     "$tor_archive" \
-    100000000 \
-    167772160 \
+    "$SOFTWARE_TOR_BROWSER_MINIMUM_BYTES" \
+    "$SOFTWARE_TOR_BROWSER_MAXIMUM_BYTES" \
     artifact
   software_download_tor_browser_asset \
     "Tor Browser signature" \
     "${tor_url}.asc" \
     "${tor_archive_url}.asc" \
     "$tor_signature" \
-    100 \
-    16384 \
+    "$SOFTWARE_TOR_BROWSER_SIGNATURE_MINIMUM_BYTES" \
+    "$SOFTWARE_TOR_BROWSER_SIGNATURE_MAXIMUM_BYTES" \
     signature
   run_in_target "authenticate and install Tor Browser" /bin/sh -eu -c '
     umask 077
-    archive=$1; signature=$2; key=$3; expected=$4; key_expected=$5
+    archive=$1; signature=$2; key=$3; expected=$4; key_expected=$5; fingerprint=$6
     key_actual=$(sha256sum "$key"); [ "${key_actual%% *}" = "$key_expected" ]
     actual=$(sha256sum "$archive"); [ "${actual%% *}" = "$expected" ]
     key_home=$(mktemp -d /tmp/installer-software/tor-verify.XXXXXX)
@@ -108,11 +107,11 @@ software_install_tor_browser() (
       --output "$key_home/developers.gpg" "$key"
     /usr/bin/gpgv --homedir "$key_home" --keyring "$key_home/developers.gpg" \
       --status-fd 1 "$signature" "$archive" >"$key_home/status"
-    /usr/bin/awk '\''$1 == "[GNUPG:]" && $2 == "VALIDSIG" &&
-      ($3 == "EF6E286DDA85EA2A4BA7DE684E2C6E8793298290" || $NF == "EF6E286DDA85EA2A4BA7DE684E2C6E8793298290") { valid++ }
+    /usr/bin/awk -v expected="$fingerprint" '\''$1 == "[GNUPG:]" && $2 == "VALIDSIG" &&
+      ($3 == expected || $NF == expected) { valid++ }
       END { exit valid != 1 }'\'' "$key_home/status"
     /usr/bin/python3 -I -B /usr/local/libexec/tor-browser-install "$archive" "$expected"
-  ' sh "$tor_archive" "$tor_signature" "$tor_key" "$tor_sha" "$tor_key_sha"
+  ' sh "$tor_archive" "$tor_signature" "$tor_key" "$tor_sha" "$tor_key_sha" "$SOFTWARE_TOR_BROWSER_SIGNING_FINGERPRINT"
   # The root-owned immutable bundle is maintained through release pins and
   # installer publication; never permit a browser-owned binary replacement.
   software_stage_seed_asset \

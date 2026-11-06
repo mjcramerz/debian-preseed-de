@@ -579,6 +579,8 @@ source_prepare_payload() (
   # Local media must not silently use a stale built snapshot after editing.
   case "$base" in /*) (cd "$base"; source_verify_manifest "$work/payload.manifest" >"$work/local-verification.log" 2>&1) || { source_error 'local repository changed after build; run tools/build.py'; exit 1; } ;; esac
   [ -s "$work/tree/repo.env" ] && [ -s "$work/tree/scripts/common/lib.sh" ] || { source_error 'payload lacks installer entry files'; exit 1; }
+  [ -f "$work/tree/hosts/profiles/shared-de.env" ] ||
+    { source_error 'payload lacks mandatory shared host profile environment'; exit 1; }
   for file in "$work/tree"/scripts/*/*.sh "$work/tree"/hosts/installer/*.env "$work/tree"/hosts/profiles/*.env; do
     [ -f "$file" ] || continue
     /bin/sh -n "$file" || { source_error "invalid shell syntax: ${file#"$work/tree/"}"; exit 1; }

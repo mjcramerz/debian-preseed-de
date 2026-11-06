@@ -11,8 +11,8 @@
 # explicitly installed target libraries while remaining unavailable outside
 # the managed Zoom/Discord Bubblewrap namespace.
 
-XWAYLAND_PRIVATE_DEPENDENCY_RELEASE=forky
-XWAYLAND_PRIVATE_DEPENDENCY_MAX_BYTES=16777216
+XWAYLAND_PRIVATE_DEPENDENCY_RELEASE=${LABWC_XWAYLAND_PRIVATE_DEPENDENCY_RELEASE:?LABWC_XWAYLAND_PRIVATE_DEPENDENCY_RELEASE must be set}
+XWAYLAND_PRIVATE_DEPENDENCY_MAX_BYTES=${LABWC_XWAYLAND_PRIVATE_DEPENDENCY_MAXIMUM_BYTES:?LABWC_XWAYLAND_PRIVATE_DEPENDENCY_MAXIMUM_BYTES must be set}
 XWAYLAND_PRIVATE_DEPENDENCY_SPECS='
 libfontenc1:libfontenc.so.1
 libxau6:libXau.so.6
@@ -61,6 +61,17 @@ desktop_xwayland_validate_sha256() {
     installer_fatal "${xwayland_sha_name} must contain 64 characters"
 }
 
+desktop_xwayland_validate_token() {
+  xwayland_token_name=$1
+  xwayland_token_value=$2
+
+  case "$xwayland_token_value" in
+    ''|*[!ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789.+:~_-]*)
+      installer_fatal "${xwayland_token_name} contains unsupported release syntax"
+      ;;
+  esac
+}
+
 desktop_xwayland_find_first_path() {
   xwayland_find_description=$1
   xwayland_find_output=$2
@@ -99,25 +110,15 @@ desktop_xwayland_validate_policy() {
   : "${LABWC_XWAYLAND_XKBCOMP_MINIMUM_BYTES:?LABWC_XWAYLAND_XKBCOMP_MINIMUM_BYTES must be set}"
   : "${LABWC_XWAYLAND_RUNTIME_ROOT:?LABWC_XWAYLAND_RUNTIME_ROOT must be set}"
 
-  [ "$LABWC_XWAYLAND_VERSION" = "2:24.1.13-1" ] ||
-    installer_fatal "LABWC_XWAYLAND_VERSION must remain pinned to 2:24.1.13-1"
-  [ "$LABWC_XWAYLAND_ARCHITECTURE" = amd64 ] ||
-    installer_fatal "LABWC_XWAYLAND_ARCHITECTURE must remain pinned to amd64"
-  [ "$LABWC_XWAYLAND_URL" = "https://snapshot.debian.org/archive/debian/20260805T142647Z/pool/main/x/xwayland/xwayland_24.1.13-1_amd64.deb" ] ||
-    installer_fatal "LABWC_XWAYLAND_URL must remain pinned to the Debian Snapshot package"
-  [ "$LABWC_XWAYLAND_SHA256" = a0633569cf2b65d5d4902a2b6213d59c7db7973faef0233df9ace48f334ba6c2 ] ||
-    installer_fatal "LABWC_XWAYLAND_SHA256 must remain pinned to the Debian 24.1.13-1 amd64 package"
+  desktop_xwayland_validate_token LABWC_XWAYLAND_VERSION "$LABWC_XWAYLAND_VERSION"
+  desktop_xwayland_validate_token LABWC_XWAYLAND_ARCHITECTURE "$LABWC_XWAYLAND_ARCHITECTURE"
+  case "$LABWC_XWAYLAND_URL" in https://*/*) ;; *) installer_fatal "LABWC_XWAYLAND_URL must be an HTTPS package URL" ;; esac
   desktop_xwayland_validate_sha256 LABWC_XWAYLAND_SHA256 "$LABWC_XWAYLAND_SHA256"
   desktop_xwayland_validate_unsigned_integer LABWC_XWAYLAND_MINIMUM_BYTES "$LABWC_XWAYLAND_MINIMUM_BYTES"
 
-  [ "$LABWC_XWAYLAND_COMMON_VERSION" = "2:21.1.24-1" ] ||
-    installer_fatal "LABWC_XWAYLAND_COMMON_VERSION must remain pinned to 2:21.1.24-1"
-  [ "$LABWC_XWAYLAND_COMMON_ARCHITECTURE" = all ] ||
-    installer_fatal "LABWC_XWAYLAND_COMMON_ARCHITECTURE must remain pinned to all"
-  [ "$LABWC_XWAYLAND_COMMON_URL" = "https://snapshot.debian.org/archive/debian/20260805T142647Z/pool/main/x/xorg-server/xserver-common_21.1.24-1_all.deb" ] ||
-    installer_fatal "LABWC_XWAYLAND_COMMON_URL must remain pinned to the Debian Snapshot package"
-  [ "$LABWC_XWAYLAND_COMMON_SHA256" = 807f2faaccada8ceac329a2c4d5b264fb794baf44bd6a2a787f9a0a75a67446b ] ||
-    installer_fatal "LABWC_XWAYLAND_COMMON_SHA256 must remain pinned to the Debian 21.1.24-1 all package"
+  desktop_xwayland_validate_token LABWC_XWAYLAND_COMMON_VERSION "$LABWC_XWAYLAND_COMMON_VERSION"
+  desktop_xwayland_validate_token LABWC_XWAYLAND_COMMON_ARCHITECTURE "$LABWC_XWAYLAND_COMMON_ARCHITECTURE"
+  case "$LABWC_XWAYLAND_COMMON_URL" in https://*/*) ;; *) installer_fatal "LABWC_XWAYLAND_COMMON_URL must be an HTTPS package URL" ;; esac
   desktop_xwayland_validate_sha256 \
     LABWC_XWAYLAND_COMMON_SHA256 \
     "$LABWC_XWAYLAND_COMMON_SHA256"
@@ -125,12 +126,8 @@ desktop_xwayland_validate_policy() {
     LABWC_XWAYLAND_COMMON_MINIMUM_BYTES \
     "$LABWC_XWAYLAND_COMMON_MINIMUM_BYTES"
 
-  [ "$LABWC_XWAYLAND_XCB_CURSOR_VERSION" = 0.1.6-1 ] ||
-    installer_fatal "LABWC_XWAYLAND_XCB_CURSOR_VERSION must remain pinned to 0.1.6-1"
-  [ "$LABWC_XWAYLAND_XCB_CURSOR_URL" = "https://snapshot.debian.org/archive/debian/20260206T022815Z/pool/main/x/xcb-util-cursor/libxcb-cursor0_0.1.6-1_amd64.deb" ] ||
-    installer_fatal "LABWC_XWAYLAND_XCB_CURSOR_URL must remain pinned to the Debian Snapshot package"
-  [ "$LABWC_XWAYLAND_XCB_CURSOR_SHA256" = f2f7730d4559769ec45aa610967d27f410b642af0c993813f50092972f8da0d4 ] ||
-    installer_fatal "LABWC_XWAYLAND_XCB_CURSOR_SHA256 must remain pinned to the Debian 0.1.6-1 amd64 package"
+  desktop_xwayland_validate_token LABWC_XWAYLAND_XCB_CURSOR_VERSION "$LABWC_XWAYLAND_XCB_CURSOR_VERSION"
+  case "$LABWC_XWAYLAND_XCB_CURSOR_URL" in https://*/*) ;; *) installer_fatal "LABWC_XWAYLAND_XCB_CURSOR_URL must be an HTTPS package URL" ;; esac
   desktop_xwayland_validate_sha256 \
     LABWC_XWAYLAND_XCB_CURSOR_SHA256 \
     "$LABWC_XWAYLAND_XCB_CURSOR_SHA256"
@@ -138,16 +135,11 @@ desktop_xwayland_validate_policy() {
     LABWC_XWAYLAND_XCB_CURSOR_MINIMUM_BYTES \
     "$LABWC_XWAYLAND_XCB_CURSOR_MINIMUM_BYTES"
 
-  [ "$LABWC_XWAYLAND_XKBCOMP_VERSION" = "7.7+9" ] ||
-    installer_fatal "LABWC_XWAYLAND_XKBCOMP_VERSION must remain pinned to 7.7+9"
-  [ "$LABWC_XWAYLAND_XKBCOMP_ARCHITECTURE" = amd64 ] ||
-    installer_fatal "LABWC_XWAYLAND_XKBCOMP_ARCHITECTURE must remain pinned to amd64"
+  desktop_xwayland_validate_token LABWC_XWAYLAND_XKBCOMP_VERSION "$LABWC_XWAYLAND_XKBCOMP_VERSION"
+  desktop_xwayland_validate_token LABWC_XWAYLAND_XKBCOMP_ARCHITECTURE "$LABWC_XWAYLAND_XKBCOMP_ARCHITECTURE"
   [ "$LABWC_XWAYLAND_XKBCOMP_ARCHITECTURE" = "$LABWC_XWAYLAND_ARCHITECTURE" ] ||
     installer_fatal "LABWC_XWAYLAND_XKBCOMP_ARCHITECTURE must match LABWC_XWAYLAND_ARCHITECTURE"
-  [ "$LABWC_XWAYLAND_XKBCOMP_URL" = "https://snapshot.debian.org/archive/debian/20260805T142647Z/pool/main/x/x11-xkb-utils/x11-xkb-utils_7.7+9_amd64.deb" ] ||
-    installer_fatal "LABWC_XWAYLAND_XKBCOMP_URL must remain pinned to the Debian Snapshot package"
-  [ "$LABWC_XWAYLAND_XKBCOMP_SHA256" = 745e29c79bb435d057cdbf8bb59a35fa33e818e566cb754674f44d381ccd4317 ] ||
-    installer_fatal "LABWC_XWAYLAND_XKBCOMP_SHA256 must remain pinned to the Debian 7.7+9 amd64 package"
+  case "$LABWC_XWAYLAND_XKBCOMP_URL" in https://*/*) ;; *) installer_fatal "LABWC_XWAYLAND_XKBCOMP_URL must be an HTTPS package URL" ;; esac
   desktop_xwayland_validate_sha256 \
     LABWC_XWAYLAND_XKBCOMP_SHA256 \
     "$LABWC_XWAYLAND_XKBCOMP_SHA256"
@@ -155,16 +147,18 @@ desktop_xwayland_validate_policy() {
     LABWC_XWAYLAND_XKBCOMP_MINIMUM_BYTES \
     "$LABWC_XWAYLAND_XKBCOMP_MINIMUM_BYTES"
 
-  [ "$LABWC_XWAYLAND_RUNTIME_ROOT" = /opt/xwayland ] ||
-    installer_fatal "LABWC_XWAYLAND_RUNTIME_ROOT must remain pinned to /opt/xwayland"
+  case "$LABWC_XWAYLAND_RUNTIME_ROOT" in
+    /*|*..*|*//*|*[!ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789._/@%:+,-]*)
+      installer_fatal "LABWC_XWAYLAND_RUNTIME_ROOT contains unsupported path syntax"
+      ;;
+  esac
 
-  [ "$XWAYLAND_PRIVATE_DEPENDENCY_RELEASE" = forky ] ||
-    installer_fatal "private Xwayland dependency release must remain pinned to forky"
+  desktop_xwayland_validate_token \
+    LABWC_XWAYLAND_PRIVATE_DEPENDENCY_RELEASE \
+    "$XWAYLAND_PRIVATE_DEPENDENCY_RELEASE"
   desktop_xwayland_validate_unsigned_integer \
     XWAYLAND_PRIVATE_DEPENDENCY_MAX_BYTES \
     "$XWAYLAND_PRIVATE_DEPENDENCY_MAX_BYTES"
-  [ "$XWAYLAND_PRIVATE_DEPENDENCY_MAX_BYTES" -eq 16777216 ] ||
-    installer_fatal "private Xwayland dependency package limit must remain pinned to 16777216 bytes"
 }
 
 desktop_xwayland_preflight_target_architecture() {

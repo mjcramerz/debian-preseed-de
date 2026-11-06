@@ -100,12 +100,17 @@ def check(seed: Path = SEED) -> dict[str, int]:
     unused = values.keys() - references.keys()
     if unused:
         raise ValueError('logging values without consumers: ' + ', '.join(sorted(unused)))
-    profiles = sorted((seed / 'hosts/profiles').glob('*.env'))
-    for profile in profiles:
+    profile_dir = seed / 'hosts/profiles'
+    profiles = sorted(path for path in profile_dir.glob('*.env') if path.name != 'shared-de.env')
+    policy_sources = [profile_dir / 'shared-de.env', *profiles]
+    for profile in policy_sources:
         text = profile.read_text()
         if re.search(r'^LOG_[A-Z0-9_]+=', text, re.M):
             raise ValueError(f'{profile.name}: shared LOG_* values belong in hosts/logging/observability.env')
-        if len(re.findall(r'^SYSTEMD_JOURNAL_VOLATILE_ENABLE="(?:true|false)"$', text, re.M)) != 1:
+        rows = re.findall(r'^SYSTEMD_JOURNAL_VOLATILE_ENABLE="(?:true|false)"$', text, re.M)
+        if profile.name == 'shared-de.env' and len(rows) != 1:
+            raise ValueError(f'{profile.name}: missing/duplicate explicit journal storage choice')
+        if profile.name != 'shared-de.env' and len(rows) > 1:
             raise ValueError(f'{profile.name}: missing/duplicate explicit journal storage choice')
     return {'variables': len(values), 'templates': templates, 'logging_templates': logging_templates, 'profiles': len(profiles)}
 

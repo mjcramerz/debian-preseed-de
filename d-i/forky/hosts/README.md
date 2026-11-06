@@ -22,7 +22,8 @@ rejected before partitioning rather than silently becoming a whole-disk install.
 ## Composition order
 
 ```text
-profiles/<selected>.env
+profiles/shared-de.env
+profiles/<selected>.env (explicit overrides)
 installer/identity.env
 installer/runtime.env
 installer/layout.env

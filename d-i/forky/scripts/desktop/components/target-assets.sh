@@ -173,8 +173,14 @@ desktop_stage_fangfrisch() (
   trap 'exit 143' TERM
   stage_target_asset "$(installer_repo_join_var DIR_SCRIPTS_DESKTOP fangfrisch-configure.py)" \
     "${fangfrisch_stage}/configure.py" 0600
-  stage_target_asset "$(installer_repo_join_var DIR_HOOKS_TARGET etc/fangfrisch.conf)" \
-    "${fangfrisch_stage}/fangfrisch.conf" 0600
+  desktop_render_role_target_template \
+    etc/fangfrisch.conf.tmpl \
+    "${fangfrisch_stage}/fangfrisch.conf" \
+    0600 \
+    FANGFRISCH_URLHAUS_FEED_BASE \
+    "$(desktop_shell_config_value "$FANGFRISCH_URLHAUS_FEED_BASE")" \
+    FANGFRISCH_SANESECURITY_PREFIX \
+    "$(desktop_shell_config_value "$FANGFRISCH_SANESECURITY_PREFIX")"
   if fangfrisch_key=$(preseed_env_read_value urlhaus_authkey); then
     :
   else
@@ -188,6 +194,8 @@ desktop_stage_fangfrisch() (
   unset fangfrisch_key
   run_in_target "configure optional URLhaus authentication privately" \
     /usr/bin/env -i HOME=/root LC_ALL=C PATH=/usr/sbin:/usr/bin:/sbin:/bin \
+    FANGFRISCH_URLHAUS_FEED_BASE="$FANGFRISCH_URLHAUS_FEED_BASE" \
+    FANGFRISCH_SANESECURITY_PREFIX="$FANGFRISCH_SANESECURITY_PREFIX" \
     /usr/bin/python3 -I -S -B "${fangfrisch_stage}/configure.py" "$fangfrisch_stage"
 )
 
@@ -295,6 +303,15 @@ desktop_stage_target_assets() {
   desktop_stage_role_asset etc/systemd/system/wifi-firstboot.service /etc/systemd/system/wifi-firstboot.service 0644
   desktop_stage_role_asset etc/systemd/system/network-wifi-shutdown.service /etc/systemd/system/network-wifi-shutdown.service 0644
   desktop_stage_role_asset usr/local/bin/labwc-ai-copilots /usr/local/bin/labwc-ai-copilots 0755
+  case "$AICOPILOTS_HUGGINGFACE_WEB_BASE_URL:$AICOPILOTS_HUGGINGFACE_API_BASE_URL" in
+    https://*/*:https://*/*) ;;
+    *) installer_fatal 'AI copilot model service endpoints must use HTTPS URLs' ;;
+  esac
+  desktop_render_role_target_template \
+    usr/local/share/labwc-ai-copilots/endpoints.json.tmpl \
+    /usr/local/share/labwc-ai-copilots/endpoints.json 0644 \
+    AICOPILOTS_HUGGINGFACE_WEB_BASE_URL "$AICOPILOTS_HUGGINGFACE_WEB_BASE_URL" \
+    AICOPILOTS_HUGGINGFACE_API_BASE_URL "$AICOPILOTS_HUGGINGFACE_API_BASE_URL"
   desktop_stage_ai_copilots_perl_modules
   desktop_stage_ai_copilots_catalogs
   desktop_stage_role_asset usr/local/bin/labwc-ai-copilots-action /usr/local/bin/labwc-ai-copilots-action 0755
@@ -669,11 +686,18 @@ if len(source) > 16384 or re.search(rb"__[A-Z][A-Z0-9_]{2,}__", source):
   desktop_stage_role_asset etc/xdg/xdg-desktop-portal/labwc-portals.conf /etc/xdg/xdg-desktop-portal/labwc-portals.conf 0644
   desktop_stage_role_asset etc/skel-desktop/.gnupg/gpg-agent.conf /etc/skel-desktop/.gnupg/gpg-agent.conf 0600
   chmod 0700 /target/etc/skel-desktop/.gnupg
-  desktop_stage_role_asset etc/skel-desktop/.config/systemd/user/obsidian-git-sync.service /etc/skel-desktop/.config/systemd/user/obsidian-git-sync.service 0644
   desktop_stage_role_asset etc/skel-desktop/.config/systemd/user/obsidian-git-sync.timer /etc/skel-desktop/.config/systemd/user/obsidian-git-sync.timer 0644
   desktop_render_role_target_template \
     etc/obsidian-git-sync.conf.tmpl /etc/obsidian-git-sync.conf 0644 \
-    OBSIDIAN_GIT_AUTO_ENABLE "$OBSIDIAN_GIT_AUTO_ENABLE"
+    OBSIDIAN_GIT_AUTO_ENABLE "$OBSIDIAN_GIT_AUTO_ENABLE" \
+    OBSIDIAN_GIT_REPOSITORY_URL "$OBSIDIAN_GIT_REPOSITORY_URL" \
+    OBSIDIAN_GIT_REPOSITORY_BRANCH "$OBSIDIAN_GIT_REPOSITORY_BRANCH" \
+    OBSIDIAN_GIT_DIRECTORY "$OBSIDIAN_GIT_DIRECTORY"
+  desktop_render_role_target_template \
+    etc/skel-desktop/.config/systemd/user/obsidian-git-sync.service \
+    /etc/skel-desktop/.config/systemd/user/obsidian-git-sync.service \
+    0644 \
+    OBSIDIAN_GIT_DIRECTORY "$OBSIDIAN_GIT_DIRECTORY"
   desktop_stage_role_asset usr/local/libexec/obsidian-git-sync /usr/local/libexec/obsidian-git-sync 0755
   desktop_stage_role_asset usr/local/libexec/obsidian-git-sync.py /usr/local/libexec/obsidian-git-sync.py 0755
 

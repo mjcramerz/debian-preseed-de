@@ -22,26 +22,12 @@ use APTRepoLocal::Servicing::Logger qw(log_msg);
 has http  => (is => 'ro', required => 1);
 has event => (is => 'ro', required => 1);
 has state => (is => 'ro', required => 1);
+has release_policy => (is => 'ro', required => 1);
 
-use constant MANIFEST_URL =>
-    'https://updates.discord.com/distributions/app/manifests/latest?channel=stable&platform=linux&arch=x64';
 use constant DISTRO_USER_AGENT => 'Discord-Updater/1';
 use constant ARCHIVE_HELPER => '/usr/local/libexec/discord-distro';
 use constant INSTALL_ROOT => '/opt/discord';
 use constant DESKTOP_FILE => '/usr/local/share/applications/discord.desktop';
-use constant HOST_MINIMUM_BYTES => 8 * 1024 * 1024;
-use constant HOST_MAXIMUM_BYTES => 314_572_800;
-use constant MODULE_MINIMUM_BYTES => 128;
-use constant MODULE_MAXIMUM_BYTES => 134_217_728;
-use constant RELEASE_MAXIMUM_BYTES => 1_073_741_824;
-use constant HOST_TAR_MAXIMUM_BYTES => 1_610_612_736;
-use constant MODULE_TAR_MAXIMUM_BYTES => 536_870_912;
-use constant HOST_MAXIMUM_MEMBERS => 20_000;
-use constant MODULE_MAXIMUM_MEMBERS => 5_000;
-use constant TREE_MAXIMUM_FILES => 40_000;
-use constant TREE_MAXIMUM_BYTES => 2_147_483_648;
-use constant TREE_RESERVED_FILES => 64;
-use constant TREE_RESERVED_BYTES => 2_097_152;
 my @REQUIRED_MODULES = qw(
     discord_desktop_core
     discord_erlpack
@@ -49,6 +35,14 @@ my @REQUIRED_MODULES = qw(
     discord_utils
     discord_voice
 );
+
+sub _limit {
+    my ($self, $name) = @_;
+    my $value = $self->release_policy()->{$name};
+    defined $value && !ref $value && $value =~ /\A[1-9][0-9]*\z/
+        or die "Discord release policy limit is unavailable: $name\n";
+    return 0 + $value;
+}
 
 sub _keys_exact {
     my ($self, $value, @expected) = @_;
@@ -227,9 +221,9 @@ sub _archive_arguments {
 sub _validate_distribution_metadata {
     my ($self, $metadata, $kind) = @_;
     my ($member_limit, $byte_limit) = $kind eq 'host'
-        ? (HOST_MAXIMUM_MEMBERS, HOST_TAR_MAXIMUM_BYTES)
+        ? ($self->_limit('host_maximum_members'), $self->_limit('host_tar_maximum_bytes'))
         : $kind eq 'module'
-            ? (MODULE_MAXIMUM_MEMBERS, MODULE_TAR_MAXIMUM_BYTES)
+            ? ($self->_limit('module_maximum_members'), $self->_limit('module_tar_maximum_bytes'))
             : die "unsupported Discord distribution kind\n";
     $self->_keys_exact(
         $metadata,
@@ -257,16 +251,18 @@ sub _accumulate_distribution_bounds {
     my ($self, $totals, $metadata) = @_;
     $totals->{files} += $metadata->{filesystem_entries};
     $totals->{bytes} += $metadata->{unpacked_bytes};
-    $totals->{files} <= TREE_MAXIMUM_FILES - TREE_RESERVED_FILES
+    $totals->{files} <= $self->_limit('tree_maximum_files') - $self->_limit('tree_reserved_files')
         or die "Discord release expanded file count exceeds safe bounds\n";
-    $totals->{bytes} <= TREE_MAXIMUM_BYTES - TREE_RESERVED_BYTES
+    $totals->{bytes} <= $self->_limit('tree_maximum_bytes') - $self->_limit('tree_reserved_bytes')
         or die "Discord release expanded size exceeds safe bounds\n";
     return $totals;
 }
 
 sub _inspect_distribution {
     my ($self, $source, $tar, $kind, $version, $module_name, $module_version) = @_;
-    my $limit = $kind eq 'host' ? HOST_TAR_MAXIMUM_BYTES : MODULE_TAR_MAXIMUM_BYTES;
+    my $limit = $kind eq 'host'
+        ? $self->_limit('host_tar_maximum_bytes')
+        : $self->_limit('module_tar_maximum_bytes');
     $self->_decompress($source, $tar, $limit);
     my $metadata = eval {
         $self->_helper_json(
@@ -289,7 +285,9 @@ sub _inspect_distribution {
 
 sub _extract_distribution {
     my ($self, $source, $tar, $destination, $kind, $version, $module_name, $module_version) = @_;
-    my $limit = $kind eq 'host' ? HOST_TAR_MAXIMUM_BYTES : MODULE_TAR_MAXIMUM_BYTES;
+    my $limit = $kind eq 'host'
+        ? $self->_limit('host_tar_maximum_bytes')
+        : $self->_limit('module_tar_maximum_bytes');
     $self->_decompress($source, $tar, $limit);
     my $metadata = eval {
         $self->_helper_json(
@@ -522,10 +520,10 @@ sub _download_release {
     my $manifest_path = "$work/discord-stable-manifest.json";
     $self->http()->download(
         label          => 'Discord stable distribution manifest',
-        url            => MANIFEST_URL,
+        url            => $self->release_policy()->{manifest_url},
         destination    => $manifest_path,
-        minimum        => 256,
-        maximum        => 1_048_576,
+        minimum        => $self->release_policy()->{manifest_minimum_bytes},
+        maximum        => $self->release_policy()->{manifest_maximum_bytes},
         content_policy => 'metadata',
         user_agent     => DISTRO_USER_AGENT,
     );
@@ -537,8 +535,8 @@ sub _download_release {
         label          => 'Discord stable host distribution',
         url            => $metadata->{host}->{url},
         destination    => $host_path,
-        minimum        => HOST_MINIMUM_BYTES,
-        maximum        => HOST_MAXIMUM_BYTES,
+        minimum        => $self->_limit('host_minimum_bytes'),
+        maximum        => $self->_limit('host_maximum_bytes'),
         content_policy => 'artifact',
         user_agent     => DISTRO_USER_AGENT,
     );
@@ -567,8 +565,8 @@ sub _download_release {
             label          => "Discord $name module",
             url            => $module->{url},
             destination    => $module_path,
-            minimum        => MODULE_MINIMUM_BYTES,
-            maximum        => MODULE_MAXIMUM_BYTES,
+            minimum        => $self->_limit('module_minimum_bytes'),
+            maximum        => $self->_limit('module_maximum_bytes'),
             content_policy => 'artifact',
             user_agent     => DISTRO_USER_AGENT,
         );
@@ -584,7 +582,7 @@ sub _download_release {
         );
         $self->_accumulate_distribution_bounds($expanded, $module_metadata);
         $release_bytes += -s $module_path;
-        $release_bytes <= RELEASE_MAXIMUM_BYTES
+        $release_bytes <= $self->_limit('release_maximum_bytes')
             or die "Discord release artifacts exceed retained size bounds\n";
         $module_paths{$name} = $module_path;
     }
@@ -653,7 +651,7 @@ sub _assert_runtime {
                         . "$path (mode $actual_mode)\n";
                 if ($path ne $root) {
                     $count++;
-                    $count <= TREE_MAXIMUM_FILES
+                    $count <= $self->_limit('tree_maximum_files')
                         or die "managed Discord runtime exceeds file-count bounds "
                             . "at $path\n";
                 }
@@ -674,7 +672,7 @@ sub _assert_runtime {
                             . "$path (mode $actual_mode, expected "
                             . sprintf('%04o', $expected_mode) . ")\n";
                     $bytes += $st[7];
-                    $bytes <= TREE_MAXIMUM_BYTES
+                    $bytes <= $self->_limit('tree_maximum_bytes')
                         or die "managed Discord runtime exceeds size bounds "
                             . "at $path\n";
                     return;

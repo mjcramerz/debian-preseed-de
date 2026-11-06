@@ -5,6 +5,7 @@ use warnings;
 
 use Moo;
 use MooX::StrictConstructor;
+use JSON::PP qw(decode_json);
 
 use APTRepoLocal::Servicing::Bitwarden;
 use APTRepoLocal::Servicing::ChatGPT;
@@ -23,6 +24,200 @@ use APTRepoLocal::Servicing::Sleek;
 use APTRepoLocal::Servicing::Tomat;
 use APTRepoLocal::Servicing::State;
 use APTRepoLocal::Servicing::Tuta;
+use APTRepoLocal::Servicing::ArtifactLimits qw(MAX_DOWNLOAD_BYTES);
+use APTRepoLocal::Servicing::Atomic;
+
+my $SOFTWARE_RELEASE_POLICY_PATH = '/usr/local/share/software/software-release-policy.json';
+
+sub _software_release_policy {
+    my ($self) = @_;
+    return $self->{software_release_policy}
+        if exists $self->{software_release_policy};
+
+    my $raw = eval {
+        APTRepoLocal::Servicing::Atomic->read_limited(
+            $SOFTWARE_RELEASE_POLICY_PATH,
+            65_536,
+        );
+    };
+    $@ and die "managed software release policy could not be read\n";
+
+    my $policy = eval { decode_json($raw) };
+    $@ and die "managed software release policy is not valid JSON\n";
+    ref($policy) eq 'HASH'
+        && defined($policy->{schema})
+        && $policy->{schema} =~ /\A1\z/
+        && ref($policy->{generic_deb}) eq 'HASH'
+        && ref($policy->{service_urls}) eq 'HASH'
+        && ref($policy->{metadata_limits}) eq 'HASH'
+        && ref($policy->{release_deb_limits}) eq 'HASH'
+        && ref($policy->{postman}) eq 'HASH'
+        && ref($policy->{tuta}) eq 'HASH'
+        && ref($policy->{discord}) eq 'HASH'
+        && ref($policy->{ledger}) eq 'HASH'
+        or die "managed software release policy has an invalid schema\n";
+
+    my %validated;
+    my %generic_deb;
+    for my $name (qw(bitwarden zoom filen chatgpt)) {
+        my $entry = $policy->{generic_deb}{$name};
+        ref($entry) eq 'HASH'
+            && defined($entry->{url})
+            && $entry->{url} =~ /\Ahttps:\/\/[^\s"\\]+\z/
+            && defined($entry->{minimum_bytes})
+            && $entry->{minimum_bytes} =~ /\A[1-9][0-9]*\z/
+            && defined($entry->{maximum_bytes})
+            && $entry->{maximum_bytes} =~ /\A[1-9][0-9]*\z/
+            && $entry->{minimum_bytes} <= $entry->{maximum_bytes}
+            && $entry->{minimum_bytes} <= MAX_DOWNLOAD_BYTES
+            && $entry->{maximum_bytes} <= MAX_DOWNLOAD_BYTES
+            or die "managed software release policy entry is invalid: $name\n";
+        $generic_deb{$name} = {
+            url           => $entry->{url},
+            minimum_bytes => 0 + $entry->{minimum_bytes},
+            maximum_bytes => 0 + $entry->{maximum_bytes},
+        };
+    }
+
+    my %service_urls;
+    for my $name (qw(
+        chatgpt discord_manifest obsidian_discovery postman sleek_discovery
+        tomat_discovery tuta_appimage tuta_signature
+    )) {
+        my $url = $policy->{service_urls}{$name};
+        defined($url) && $url =~ /\Ahttps:\/\/[^\s"\\]+\z/
+            or die "managed software service URL is invalid: $name\n";
+        $service_urls{$name} = $url;
+    }
+
+    my %metadata_limits;
+    for my $name (qw(minimum_bytes maximum_bytes)) {
+        my $value = $policy->{metadata_limits}{$name};
+        defined($value)
+            && $value =~ /\A[1-9][0-9]*\z/
+            && $value <= MAX_DOWNLOAD_BYTES
+            or die "managed software metadata limit is invalid: $name\n";
+        $metadata_limits{$name} = 0 + $value;
+    }
+    $metadata_limits{minimum_bytes} <= $metadata_limits{maximum_bytes}
+        or die "managed software metadata limits are inconsistent\n";
+
+    my %release_deb_limits;
+    for my $name (qw(obsidian sleek tomat)) {
+        my $entry = $policy->{release_deb_limits}{$name};
+        ref($entry) eq 'HASH'
+            or die "managed release package limits are invalid: $name\n";
+        my %limits;
+        for my $limit (qw(minimum_bytes maximum_bytes)) {
+            defined($entry->{$limit})
+                && $entry->{$limit} =~ /\A[1-9][0-9]*\z/
+                && $entry->{$limit} <= MAX_DOWNLOAD_BYTES
+                or die "managed release package limit is invalid: $name/$limit\n";
+            $limits{$limit} = 0 + $entry->{$limit};
+        }
+        $limits{minimum_bytes} <= $limits{maximum_bytes}
+            or die "managed release package limits are inconsistent: $name\n";
+        $release_deb_limits{$name} = \%limits;
+    }
+
+    my %postman_limits;
+    for my $name (qw(minimum_bytes maximum_bytes maximum_extracted_bytes maximum_members metadata_maximum_bytes)) {
+        my $value = $policy->{postman}{$name};
+        defined($value)
+            && $value =~ /\A[1-9][0-9]*\z/
+            && $value <= MAX_DOWNLOAD_BYTES
+            or die "managed Postman limit is invalid: $name\n";
+        $postman_limits{$name} = 0 + $value;
+    }
+    $postman_limits{minimum_bytes} <= $postman_limits{maximum_bytes}
+        or die "managed Postman download limits are inconsistent\n";
+
+    my %tuta_limits;
+    for my $name (qw(appimage_minimum_bytes appimage_maximum_bytes signature_minimum_bytes signature_maximum_bytes)) {
+        my $value = $policy->{tuta}{$name};
+        defined($value)
+            && $value =~ /\A[1-9][0-9]*\z/
+            && $value <= MAX_DOWNLOAD_BYTES
+            or die "managed Tuta limit is invalid: $name\n";
+        $tuta_limits{$name} = 0 + $value;
+    }
+    $tuta_limits{appimage_minimum_bytes} <= $tuta_limits{appimage_maximum_bytes}
+        && $tuta_limits{signature_minimum_bytes} <= $tuta_limits{signature_maximum_bytes}
+        or die "managed Tuta download limits are inconsistent\n";
+
+    my %discord_limits;
+    for my $name (qw(
+        host_minimum_bytes host_maximum_bytes module_minimum_bytes module_maximum_bytes
+        release_maximum_bytes host_tar_maximum_bytes module_tar_maximum_bytes
+        host_maximum_members module_maximum_members tree_maximum_files tree_maximum_bytes
+        tree_reserved_files tree_reserved_bytes
+    )) {
+        my $value = $policy->{discord}{$name};
+        defined($value)
+            && $value =~ /\A[1-9][0-9]*\z/
+            && $value <= MAX_DOWNLOAD_BYTES
+            or die "managed Discord limit is invalid: $name\n";
+        $discord_limits{$name} = 0 + $value;
+    }
+    $discord_limits{host_minimum_bytes} <= $discord_limits{host_maximum_bytes}
+        && $discord_limits{module_minimum_bytes} <= $discord_limits{module_maximum_bytes}
+        && $discord_limits{host_maximum_bytes} <= $discord_limits{host_tar_maximum_bytes}
+        && $discord_limits{module_maximum_bytes} <= $discord_limits{module_tar_maximum_bytes}
+        && $discord_limits{tree_reserved_files} < $discord_limits{tree_maximum_files}
+        && $discord_limits{tree_reserved_bytes} < $discord_limits{tree_maximum_bytes}
+        or die "managed Discord limits are inconsistent\n";
+    $discord_limits{manifest_url} = $service_urls{discord_manifest};
+    $discord_limits{manifest_minimum_bytes} = $metadata_limits{minimum_bytes};
+    $discord_limits{manifest_maximum_bytes} = $metadata_limits{maximum_bytes};
+
+    my $ledger = $policy->{ledger};
+    for my $name (qw(requested_latest_url metadata_url checksums_base_url)) {
+        defined($ledger->{$name})
+            && $ledger->{$name} =~ /\Ahttps:\/\/[^\s"\\]+\z/
+            or die "managed Ledger release policy URL is invalid: $name\n";
+    }
+    $ledger->{checksums_base_url} =~ /-\z/
+        or die "managed Ledger checksum URL base is invalid\n";
+    defined($ledger->{public_key_sha256})
+        && $ledger->{public_key_sha256} =~ /\A[0-9a-f]{64}\z/
+        or die "managed Ledger public key fingerprint is invalid\n";
+    my %ledger_limits;
+    for my $name (qw(
+        metadata_minimum_bytes metadata_maximum_bytes appimage_minimum_bytes
+        appimage_maximum_bytes appimage_maximum_extracted_bytes
+        appimage_maximum_members checksums_minimum_bytes checksums_maximum_bytes
+        signature_minimum_bytes signature_maximum_bytes
+    )) {
+        defined($ledger->{$name})
+            && $ledger->{$name} =~ /\A[1-9][0-9]*\z/
+            && $ledger->{$name} <= MAX_DOWNLOAD_BYTES
+            or die "managed Ledger release policy limit is invalid: $name\n";
+        $ledger_limits{$name} = 0 + $ledger->{$name};
+    }
+    $ledger_limits{metadata_minimum_bytes} <= $ledger_limits{metadata_maximum_bytes}
+        && $ledger_limits{appimage_minimum_bytes} <= $ledger_limits{appimage_maximum_bytes}
+        && $ledger_limits{appimage_maximum_bytes} <= $ledger_limits{appimage_maximum_extracted_bytes}
+        && $ledger_limits{checksums_minimum_bytes} <= $ledger_limits{checksums_maximum_bytes}
+        && $ledger_limits{signature_minimum_bytes} <= $ledger_limits{signature_maximum_bytes}
+        or die "managed Ledger release policy limits are inconsistent\n";
+    $validated{ledger} = {
+        requested_latest_url => $ledger->{requested_latest_url},
+        metadata_url        => $ledger->{metadata_url},
+        checksums_base_url  => $ledger->{checksums_base_url},
+        public_key_sha256   => $ledger->{public_key_sha256},
+        %ledger_limits,
+    };
+    $validated{generic_deb} = \%generic_deb;
+    $validated{service_urls} = \%service_urls;
+    $validated{metadata_limits} = \%metadata_limits;
+    $validated{release_deb_limits} = \%release_deb_limits;
+    $validated{postman} = \%postman_limits;
+    $validated{tuta} = \%tuta_limits;
+    $validated{discord} = \%discord_limits;
+
+    $self->{software_release_policy} = \%validated;
+    return $self->{software_release_policy};
+}
 
 sub _log {
     my ($self, $level, $message) = @_;
@@ -105,12 +300,14 @@ sub _payload_is_present {
 
 sub _generic_deb_specs {
     my ($self, $chatgpt) = @_;
+    my $release_policy = $self->_software_release_policy();
     my @specs = (
         {
             name       => 'bitwarden',
             label      => 'Bitwarden Desktop',
-            url        => 'https://bitwarden.com/download/?app=desktop&platform=linux&variant=deb',
-            maximum    => 314_572_800,
+            url        => $release_policy->{generic_deb}{bitwarden}{url},
+            minimum    => $release_policy->{generic_deb}{bitwarden}{minimum_bytes},
+            maximum    => $release_policy->{generic_deb}{bitwarden}{maximum_bytes},
             packages   => ['bitwarden'],
             executable => '/opt/Bitwarden/bitwarden',
             in_use_roots => ['/opt/Bitwarden'],
@@ -124,8 +321,9 @@ sub _generic_deb_specs {
         {
             name       => 'zoom',
             label      => 'Zoom Workplace',
-            url        => 'https://zoom.us/client/latest/zoom_amd64.deb',
-            maximum    => 536_870_912,
+            url        => $release_policy->{generic_deb}{zoom}{url},
+            minimum    => $release_policy->{generic_deb}{zoom}{minimum_bytes},
+            maximum    => $release_policy->{generic_deb}{zoom}{maximum_bytes},
             packages   => ['zoom'],
             executable => '/usr/bin/zoom',
             in_use_roots => ['/opt/zoom'],
@@ -135,8 +333,9 @@ sub _generic_deb_specs {
         {
             name       => 'filen',
             label      => 'Filen Desktop',
-            url        => 'https://cdn.filen.io/@filen/desktop/release/latest/Filen_linux_amd64.deb',
-            maximum    => 536_870_912,
+            url        => $release_policy->{generic_deb}{filen}{url},
+            minimum    => $release_policy->{generic_deb}{filen}{minimum_bytes},
+            maximum    => $release_policy->{generic_deb}{filen}{maximum_bytes},
             packages   => [qw(filen filen-desktop)],
             executable => '/opt/Filen/Filen',
             in_use_roots => ['/opt/Filen'],
@@ -243,7 +442,7 @@ sub _fetch_generic_deb {
             label          => $app->{label},
             url            => $app->{url},
             destination    => $path,
-            minimum        => 1_048_576,
+            minimum        => $app->{minimum},
             maximum        => $app->{maximum},
             content_policy => 'artifact',
         );
@@ -440,7 +639,11 @@ sub _run_download {
     my $http = APTRepoLocal::Servicing::HTTP->new();
     my $repository = APTRepoLocal::Servicing::Repository->new(directory => $state->deb_dir());
     my $deb = APTRepoLocal::Servicing::Deb->new(repository => $repository);
-    my $chatgpt = APTRepoLocal::Servicing::ChatGPT->new(state => $state);
+    my $release_policy = $self->_software_release_policy();
+    my $chatgpt = APTRepoLocal::Servicing::ChatGPT->new(
+        state => $state,
+        release_policy => $release_policy,
+    );
     my ($ready, $failed) = (0, 0);
     $event->emit('checking', 'all', '-', '-');
 
@@ -450,9 +653,9 @@ sub _run_download {
     }
     my @release_specs = $self->_release_deb_specs();
     my @release_modules = (
-        APTRepoLocal::Servicing::Obsidian->new(http => $http, deb => $deb),
-        APTRepoLocal::Servicing::Sleek->new(http => $http, deb => $deb),
-        APTRepoLocal::Servicing::Tomat->new(http => $http, deb => $deb),
+        APTRepoLocal::Servicing::Obsidian->new(http => $http, deb => $deb, release_policy => $release_policy),
+        APTRepoLocal::Servicing::Sleek->new(http => $http, deb => $deb, release_policy => $release_policy),
+        APTRepoLocal::Servicing::Tomat->new(http => $http, deb => $deb, release_policy => $release_policy),
     );
     for my $index (0 .. $#release_specs) {
         my $app = $release_specs[$index];
@@ -467,10 +670,13 @@ sub _run_download {
         $self->_record_result($event, $app->{name}, $result, $reason, \$ready, \$failed);
     }
     for my $handler (
-        [ discord => APTRepoLocal::Servicing::Discord->new(http => $http, event => $event, state => $state) ],
-        [ postman => APTRepoLocal::Servicing::Postman->new(http => $http, event => $event, state => $state) ],
-        [ tuta    => APTRepoLocal::Servicing::Tuta->new(http => $http, event => $event, state => $state) ],
-        [ ledger  => APTRepoLocal::Servicing::Ledger->new(http => $http, event => $event, state => $state) ],
+        [ discord => APTRepoLocal::Servicing::Discord->new(http => $http, event => $event, state => $state, release_policy => $release_policy->{discord}) ],
+        [ postman => APTRepoLocal::Servicing::Postman->new(http => $http, event => $event, state => $state, release_policy => $release_policy) ],
+        [ tuta    => APTRepoLocal::Servicing::Tuta->new(http => $http, event => $event, state => $state, release_policy => $release_policy) ],
+        [ ledger  => APTRepoLocal::Servicing::Ledger->new(
+            http => $http, event => $event, state => $state,
+            release_policy => $release_policy->{ledger},
+        ) ],
     ) {
         my ($result, $reason) = eval { $handler->[1]->fetch($work) };
         ($result, $reason) = (1, 'validation') if $@ || !defined $result;
@@ -488,8 +694,12 @@ sub _run_apply {
     my ($self, $state, $event, $work) = @_;
     my $repository = APTRepoLocal::Servicing::Repository->new(directory => $state->deb_dir());
     my $deb = APTRepoLocal::Servicing::Deb->new(repository => $repository);
-    my $chatgpt = APTRepoLocal::Servicing::ChatGPT->new(state => $state);
     my $http = APTRepoLocal::Servicing::HTTP->new();
+    my $release_policy = $self->_software_release_policy();
+    my $chatgpt = APTRepoLocal::Servicing::ChatGPT->new(
+        state => $state,
+        release_policy => $release_policy,
+    );
     my ($updated, $failed) = (0, 0);
     for my $app ($self->_all_deb_specs($chatgpt)) {
         my ($result, $reason) = $self->_apply_deb(
@@ -502,10 +712,13 @@ sub _run_apply {
         $self->_record_result($event, $app->{name}, $result, $reason, \$updated, \$failed);
     }
     for my $handler (
-        [ discord => APTRepoLocal::Servicing::Discord->new(http => $http, event => $event, state => $state) ],
-        [ postman => APTRepoLocal::Servicing::Postman->new(http => $http, event => $event, state => $state) ],
-        [ tuta    => APTRepoLocal::Servicing::Tuta->new(http => $http, event => $event, state => $state) ],
-        [ ledger  => APTRepoLocal::Servicing::Ledger->new(http => $http, event => $event, state => $state) ],
+        [ discord => APTRepoLocal::Servicing::Discord->new(http => $http, event => $event, state => $state, release_policy => $release_policy->{discord}) ],
+        [ postman => APTRepoLocal::Servicing::Postman->new(http => $http, event => $event, state => $state, release_policy => $release_policy) ],
+        [ tuta    => APTRepoLocal::Servicing::Tuta->new(http => $http, event => $event, state => $state, release_policy => $release_policy) ],
+        [ ledger  => APTRepoLocal::Servicing::Ledger->new(
+            http => $http, event => $event, state => $state,
+            release_policy => $release_policy->{ledger},
+        ) ],
     ) {
         my ($result, $reason) = eval { $handler->[1]->apply($work) };
         ($result, $reason) = (1, 'validation') if $@ || !defined $result;
@@ -523,7 +736,11 @@ sub _run_repair {
     my ($self, $state, $event, $work) = @_;
     my $repository = APTRepoLocal::Servicing::Repository->new(directory => $state->deb_dir());
     my $deb = APTRepoLocal::Servicing::Deb->new(repository => $repository);
-    my $chatgpt = APTRepoLocal::Servicing::ChatGPT->new(state => $state);
+    my $release_policy = $self->_software_release_policy();
+    my $chatgpt = APTRepoLocal::Servicing::ChatGPT->new(
+        state => $state,
+        release_policy => $release_policy,
+    );
     my $failed = 0;
     for my $app ($self->_all_deb_specs($chatgpt)) {
         my $repaired = eval {
@@ -591,6 +808,7 @@ sub _run_repair {
         http  => $http,
         event => $event,
         state => $state,
+        release_policy => $release_policy->{discord},
     );
     my ($discord_result, $discord_reason) = eval { $discord->repair($work) };
     ($discord_result, $discord_reason) = (1, 'validation')
@@ -608,7 +826,11 @@ sub _run_repair {
 
 sub _run_bootstrap_chatgpt {
     my ($self, $state, $event, $work) = @_;
-    my $chatgpt = APTRepoLocal::Servicing::ChatGPT->new(state => $state);
+    my $release_policy = $self->_software_release_policy();
+    my $chatgpt = APTRepoLocal::Servicing::ChatGPT->new(
+        state => $state,
+        release_policy => $release_policy,
+    );
     $chatgpt->enabled()
         or die "ChatGPT bootstrap requires addon/devops enable state\n";
     my $http = APTRepoLocal::Servicing::HTTP->new();
@@ -696,6 +918,7 @@ sub run_updater {
                 http  => $http,
                 event => $event,
                 state => $state,
+                release_policy => $self->_software_release_policy()->{discord},
             );
             my ($discord_result, $discord_reason) = $discord->bootstrap($work);
             if ($discord_result != 0) {

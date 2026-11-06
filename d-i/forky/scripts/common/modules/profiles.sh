@@ -299,6 +299,7 @@ installer_fetch_host_env() {
   installer_validate_profile_component "host layout family" "$host_layout_family"
 
   set -- \
+    "$(installer_repo_join_var DIR_HOSTS_PROFILES shared-de.env)" \
     "$(installer_profile_env_path "$host_profile_env_dir" "$host_profile_env_name")" \
     "$(installer_repo_join_var DIR_HOSTS_INSTALLER hosting.env)" \
     "$(installer_repo_join_var DIR_HOSTS_INSTALLER identity.env)" \

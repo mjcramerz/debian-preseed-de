@@ -263,8 +263,14 @@ desktop_write_labwc_plans_config() {
       etc/labwc/plans.conf.tmpl \
       /etc/labwc/plans.conf \
       0640 \
+      LABWC_PLANS_ENABLED "$(desktop_shell_config_value "$LABWC_PLANS_ENABLED")" \
+      LABWC_PLANS_TELEGRAM_ENABLED "$(desktop_shell_config_value "$LABWC_PLANS_TELEGRAM_ENABLED")" \
+      LABWC_PLANS_TELEGRAM_API_BASE "$(desktop_shell_config_value "$LABWC_PLANS_TELEGRAM_API_BASE")" \
       TELEGRAM_API_KEY "$DESKTOP_TELEGRAM_API_KEY" \
-      TELEGRAM_CHAT_ID "$DESKTOP_TELEGRAM_CHAT_ID"
+      TELEGRAM_CHAT_ID "$DESKTOP_TELEGRAM_CHAT_ID" \
+      LABWC_PLANS_NTFY_ENABLED "$(desktop_shell_config_value "$LABWC_PLANS_NTFY_ENABLED")" \
+      LABWC_PLANS_NTFY_BASE_URL "$(desktop_shell_config_value "$LABWC_PLANS_NTFY_BASE_URL")" \
+      LABWC_PLANS_NTFY_READER_ACCESS_CONFIRMED "$(desktop_shell_config_value "$LABWC_PLANS_NTFY_READER_ACCESS_CONFIRMED")"
   )
   chown "root:${primary_account_gid}" /target/etc/labwc/plans.conf
   chmod 0640 /target/etc/labwc/plans.conf
@@ -288,7 +294,7 @@ desktop_install_primary_account_calendar_stack() (
   (umask 077; printf '%s' "$DESKTOP_FRUUX_USERNAME" >"$calendar_stage_host/username")
   (umask 077; printf '%s' "$DESKTOP_FRUUX_PASSWORD" >"$calendar_stage_host/password")
   unset DESKTOP_FRUUX_USERNAME DESKTOP_FRUUX_PASSWORD
-  run_in_target "install pinned Waycal, Calix and Agenda with private Fruux bootstrap" \
+  run_in_target "install pinned calendar releases with private account bootstrap" \
     /usr/bin/env -i HOME=/root LC_ALL=C.UTF-8 PATH=/usr/sbin:/usr/bin:/sbin:/bin \
     ACCOUNT_USERNAME="$ACCOUNT_USERNAME" ACCOUNT_HOME="$ACCOUNT_HOME" \
     WAYCAL_VERSION="$WAYCAL_VERSION" WAYCAL_URL="$WAYCAL_URL" WAYCAL_COMMIT="$WAYCAL_COMMIT" \
@@ -297,5 +303,6 @@ desktop_install_primary_account_calendar_stack() (
     CALIX_SHA256="$CALIX_SHA256" CALIX_MAXIMUM_BYTES="$CALIX_MAXIMUM_BYTES" \
     AGENDA_VERSION="$AGENDA_VERSION" AGENDA_URL="$AGENDA_URL" AGENDA_COMMIT="$AGENDA_COMMIT" \
     AGENDA_SHA256="$AGENDA_SHA256" AGENDA_MAXIMUM_BYTES="$AGENDA_MAXIMUM_BYTES" \
+    CALENDAR_CALDAV_SERVER_URL="$CALENDAR_CALDAV_SERVER_URL" \
     /usr/bin/python3 -I -B "${calendar_stage}/install.py" "$calendar_stage"
 )

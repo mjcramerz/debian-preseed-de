@@ -35,13 +35,20 @@ minimum_bytes=$4
 maximum_bytes=$5
 install_dir=$6
 binary_path=$7
+bazelisk_archive_filename=${bazelisk_url##*/}
+install_parent=${install_dir%/*}
 
 case "$bazelisk_url" in
-  "https://github.com/bazelbuild/bazelisk/releases/download/v${bazelisk_version}/bazelisk-linux-amd64")
+  https://*/*)
     ;;
   *)
-    bazelisk_fatal "release URL does not match the requested Bazelisk version"
+    bazelisk_fatal "release URL must be an HTTPS URL with a release filename"
     ;;
+esac
+[ -n "$bazelisk_archive_filename" ] ||
+  bazelisk_fatal "release URL has no release filename"
+case "$bazelisk_archive_filename" in
+  */*) bazelisk_fatal "release URL filename must not contain a slash" ;;
 esac
 case "$expected_sha256" in
   *[!0123456789abcdef]*|"") bazelisk_fatal "expected SHA-256 is malformed" ;;
@@ -52,17 +59,20 @@ bazelisk_validate_positive_integer "minimum byte limit" "$minimum_bytes"
 bazelisk_validate_positive_integer "maximum byte limit" "$maximum_bytes"
 [ "$maximum_bytes" -ge "$minimum_bytes" ] ||
   bazelisk_fatal "maximum byte limit is smaller than the minimum"
-[ "$install_dir" = /usr/local/lib/bazelisk ] ||
-  bazelisk_fatal "Bazelisk install directory is not approved: $install_dir"
-[ "$binary_path" = "${install_dir}/bazel" ] ||
-  bazelisk_fatal "Bazelisk binary path is not approved: $binary_path"
+case "$install_dir" in
+  /*|/*/*) ;;
+  *) bazelisk_fatal "Bazelisk install directory must be absolute: $install_dir" ;;
+esac
+case "$binary_path" in
+  "$install_dir"/*) ;;
+  *) bazelisk_fatal "Bazelisk binary path must be below its install directory: $binary_path" ;;
+esac
 
 for required_command in awk chmod chown curl install mktemp rm sha256sum tr wc; do
   bazelisk_require_command "$required_command"
 done
 unset required_command
 
-install_parent=/usr/local/lib
 [ -d "$install_parent" ] || install -d -m 0755 "$install_parent"
 [ ! -L "$install_parent" ] ||
   bazelisk_fatal "${install_parent} must not be a symlink"
@@ -76,7 +86,7 @@ cleanup() {
 }
 trap cleanup EXIT HUP INT TERM
 
-payload_path="${staging_dir}/bazelisk-linux-amd64"
+payload_path="${staging_dir}/${bazelisk_archive_filename}"
 curl \
   --fail \
   --silent \
@@ -202,10 +212,11 @@ node_install() {
   archive_url=$3
   expected_sha256=$4
   minimum_bytes=$5
-  archive_name=$6
-  archive_root=$7
-  install_dir=$8
-  binary_path=$9
+  maximum_bytes=$6
+  archive_name=$7
+  archive_root=$8
+  install_dir=$9
+  binary_path=${10}
 
   case "$major_version" in
     22|24|26) ;;
@@ -218,12 +229,15 @@ node_install() {
     node_fatal "Node archive filename does not match its managed release"
   [ "$archive_root" = "node-${release_version}-linux-x64" ] ||
     node_fatal "Node archive root does not match its managed release"
-  [ "$archive_url" = "https://nodejs.org/dist/${release_version}/${archive_name}" ] ||
-    node_fatal "Node release URL is not the official Linux x64 archive"
-  [ "$install_dir" = "/usr/local/lib/node-${major_version}" ] ||
-    node_fatal "Node install root is outside the managed release root"
-  [ "$binary_path" = "${install_dir}/bin/node" ] ||
-    node_fatal "Node binary path does not match its managed install root"
+  case "$archive_url" in https://*/"$archive_name") ;; *) node_fatal "Node release URL does not match its configured archive" ;; esac
+  case "$install_dir" in
+    /*|/*/*) ;;
+    *) node_fatal "Node install root must be absolute" ;;
+  esac
+  case "$binary_path" in
+    "$install_dir"/*) ;;
+    *) node_fatal "Node binary path must be below its managed install root" ;;
+  esac
   [ "${#expected_sha256}" -eq 64 ] ||
     node_fatal "Node SHA-256 must contain 64 lowercase hexadecimal characters"
   case "$expected_sha256" in
@@ -232,17 +246,19 @@ node_install() {
       ;;
   esac
   node_validate_positive_integer "minimum byte count" "$minimum_bytes"
-  maximum_bytes=$((minimum_bytes * 8))
-  [ "$maximum_bytes" -ge 8388608 ] || maximum_bytes=8388608
+  node_validate_positive_integer "maximum byte count" "$maximum_bytes"
+  [ "$maximum_bytes" -ge "$minimum_bytes" ] ||
+    node_fatal "Node maximum byte count is smaller than its minimum"
 
   [ ! -e "$install_dir" ] ||
     node_fatal "Node install path already exists; this fresh-install helper will not replace it: $install_dir"
 
-  install -d -m 0755 /usr/local/lib
-  [ ! -L /usr/local/lib ] ||
-    node_fatal "/usr/local/lib must not be a symlink"
+  node_install_parent=${install_dir%/*}
+  [ -d "$node_install_parent" ] || install -d -m 0755 "$node_install_parent"
+  [ ! -L "$node_install_parent" ] ||
+    node_fatal "Node install parent must not be a symlink: $node_install_parent"
 
-  staging_dir=$(mktemp -d /usr/local/lib/.devops-node.XXXXXXXX) ||
+  staging_dir=$(mktemp -d "${node_install_parent}/.devops-node.XXXXXXXX") ||
     node_fatal "unable to allocate Node staging directory"
   trap "rm -rf -- \"\$staging_dir\"" EXIT HUP INT TERM
 
@@ -355,28 +371,29 @@ for required_command in awk chown curl find install ln mktemp mv rmdir sha256sum
 done
 unset required_command
 
-download_timeout=${28}
-max_archive_members=${29}
-max_extracted_bytes=${30}
+download_timeout=${31}
+max_archive_members=${32}
+max_extracted_bytes=${33}
 node_validate_positive_integer "Node download timeout" "$download_timeout"
 node_validate_positive_integer "Node archive member ceiling" "$max_archive_members"
 node_validate_positive_integer "Node expanded-byte ceiling" "$max_extracted_bytes"
 
-node_install "$1" "$2" "$3" "$4" "$5" "$6" "$7" "$8" "$9"
-node_install "${10}" "${11}" "${12}" "${13}" "${14}" "${15}" "${16}" "${17}" "${18}"
-node_install "${19}" "${20}" "${21}" "${22}" "${23}" "${24}" "${25}" "${26}" "${27}"
-node_enable_corepack "$1" "$8"
-node_enable_corepack "${10}" "${17}"
+node_install "$1" "$2" "$3" "$4" "$5" "$6" "$7" "$8" "$9" "${10}"
+node_install "${11}" "${12}" "${13}" "${14}" "${15}" "${16}" "${17}" "${18}" "${19}" "${20}"
+node_install "${21}" "${22}" "${23}" "${24}" "${25}" "${26}" "${27}" "${28}" "${29}" "${30}"
+node_enable_corepack "$1" "$9"
+node_enable_corepack "${11}" "${19}"
 # Corepack stopped shipping with Node 25.  Node 26 receives package-manager
 # shims from the verified Node 24 Corepack payload while retaining Node 26 as
 # the runtime selected by Mise.
-node_enable_corepack "${19}" "${26}" "${17}"
+node_enable_corepack "${21}" "${29}" "${19}"
 ' sh \
     "$DEVOPS_NODE_22_MAJOR" \
     "$DEVOPS_NODE_22_VERSION" \
     "$DEVOPS_NODE_22_URL" \
     "$DEVOPS_NODE_22_SHA256" \
     "$DEVOPS_NODE_22_MINIMUM_BYTES" \
+    "$DEVOPS_NODE_22_MAXIMUM_BYTES" \
     "$DEVOPS_NODE_22_ARCHIVE_FILENAME" \
     "$DEVOPS_NODE_22_ARCHIVE_ROOT" \
     "$DEVOPS_NODE_22_INSTALL_ROOT" \
@@ -386,6 +403,7 @@ node_enable_corepack "${19}" "${26}" "${17}"
     "$DEVOPS_NODE_24_URL" \
     "$DEVOPS_NODE_24_SHA256" \
     "$DEVOPS_NODE_24_MINIMUM_BYTES" \
+    "$DEVOPS_NODE_24_MAXIMUM_BYTES" \
     "$DEVOPS_NODE_24_ARCHIVE_FILENAME" \
     "$DEVOPS_NODE_24_ARCHIVE_ROOT" \
     "$DEVOPS_NODE_24_INSTALL_ROOT" \
@@ -395,6 +413,7 @@ node_enable_corepack "${19}" "${26}" "${17}"
     "$DEVOPS_NODE_26_URL" \
     "$DEVOPS_NODE_26_SHA256" \
     "$DEVOPS_NODE_26_MINIMUM_BYTES" \
+    "$DEVOPS_NODE_26_MAXIMUM_BYTES" \
     "$DEVOPS_NODE_26_ARCHIVE_FILENAME" \
     "$DEVOPS_NODE_26_ARCHIVE_ROOT" \
     "$DEVOPS_NODE_26_INSTALL_ROOT" \

@@ -13,6 +13,7 @@ import ctypes
 import fcntl
 import os
 from pathlib import Path
+from pathlib import PurePosixPath
 import pwd
 import re
 import resource
@@ -27,12 +28,6 @@ import sys
 import tempfile
 import time
 
-CODEX_URL = 'git@gitlab.com:computes/misc/codex-home.git'
-CODEX_BRANCH = 'mcr/main'
-OBSIDIAN_URL = 'git@gitlab.com:core-assets/docs/obsidian-md.git'
-OBSIDIAN_BRANCH = 'mcr/main'
-NETSCAPE_URL = 'git@gitlab.com:core-assets/helpers/netscape.git'
-NETSCAPE_BRANCH = 'mcr/main'
 HOSTS = '/etc/ssh/git_known_hosts'
 ASKPASS = str(Path(__file__).with_name('ssh-install-askpass'))
 BASE_ENV = {'PATH': '/usr/sbin:/usr/bin:/sbin:/bin', 'LC_ALL': 'C.UTF-8',
@@ -43,6 +38,41 @@ class InstallError(ValueError):
 
 class CleanupUnknown(InstallError):
     pass
+
+
+def repository_policy() -> dict[str, str]:
+    values = {
+        'codex_url': os.environ.get('DEVOPS_CODEX_REPOSITORY_URL', ''),
+        'codex_branch': os.environ.get('DEVOPS_CODEX_REPOSITORY_BRANCH', ''),
+        'obsidian_url': os.environ.get('OBSIDIAN_GIT_REPOSITORY_URL', ''),
+        'obsidian_branch': os.environ.get('OBSIDIAN_GIT_REPOSITORY_BRANCH', ''),
+        'obsidian_directory': os.environ.get('OBSIDIAN_GIT_DIRECTORY', ''),
+        'netscape_url': os.environ.get('BROWSER_NETSCAPE_REPOSITORY_URL', ''),
+        'netscape_branch': os.environ.get('BROWSER_NETSCAPE_REPOSITORY_BRANCH', ''),
+        'netscape_directory': os.environ.get('BROWSER_NETSCAPE_DIRECTORY', ''),
+        'codex_root': os.environ.get('DEVOPS_CODEX_ROOT', ''),
+    }
+    for label in ('codex_url', 'obsidian_url', 'netscape_url'):
+        value = values[label]
+        if (not re.fullmatch(r'git@[A-Za-z0-9.-]+:[A-Za-z0-9._-]+/[A-Za-z0-9._/-]+', value)
+                or '..' in value or '//' in value or value.endswith('/')):
+            raise InstallError(f'{label} is not a valid configured Git SSH source')
+    for label in ('codex_branch', 'obsidian_branch', 'netscape_branch'):
+        value = values[label]
+        if (not re.fullmatch(r'[A-Za-z0-9][A-Za-z0-9._/-]*', value)
+                or value.endswith('/') or '//' in value or '..' in value):
+            raise InstallError(f'{label} is not a valid configured branch')
+    for label in ('obsidian_directory', 'netscape_directory'):
+        value = values[label]
+        path = PurePosixPath(value)
+        if (not re.fullmatch(r'[A-Za-z0-9._-]+/[A-Za-z0-9._-]+', value)
+                or len(path.parts) != 2 or any(part in {'.', '..'} for part in path.parts)):
+            raise InstallError(f'{label} must contain exactly two safe relative path components')
+    value = values['codex_root']
+    if (not re.fullmatch(r'/[A-Za-z0-9._/-]+', value)
+            or '//' in value or '/./' in value or '/../' in f'/{value.strip("/")}/'):
+        raise InstallError('DEVOPS_CODEX_ROOT is not a valid configured absolute path')
+    return values
 
 def stop_owned(proc: subprocess.Popen, grace: float = 0) -> None:
     """Keep the direct leader unreaped until the last process-group signal."""
@@ -364,12 +394,18 @@ def seal(account: pwd.struct_passwd, home: Path, secret: bytes,
             account.pw_uid, account.pw_gid)
 
 def clone(destination: Path, stage: Path, agent_env: dict[str, str], *,
-          url: str = CODEX_URL, branch: str = CODEX_BRANCH) -> None:
+          url: str, branch: str, policy: dict[str, str]) -> None:
     # Only the approved URL/branch, an empty template and explicit SSH policy.
     # Do not consult root's or the user's Git/SSH configuration during install.
-    if url == CODEX_URL and branch == CODEX_BRANCH:
-        approved = re.fullmatch(r'/data/codex/\.home-clone\.[A-Za-z0-9]+/repository', str(destination))
-    elif (url, branch) in ((OBSIDIAN_URL, OBSIDIAN_BRANCH), (NETSCAPE_URL, NETSCAPE_BRANCH)):
+    if (url, branch) == (policy['codex_url'], policy['codex_branch']):
+        approved = re.fullmatch(
+            re.escape(policy['codex_root']) + r'/\.home-clone\.[A-Za-z0-9]+/repository',
+            str(destination),
+        )
+    elif (url, branch) in (
+        (policy['obsidian_url'], policy['obsidian_branch']),
+        (policy['netscape_url'], policy['netscape_branch']),
+    ):
         approved = destination == stage/'repository'
     else:
         approved = False
@@ -409,7 +445,7 @@ def clone(destination: Path, stage: Path, agent_env: dict[str, str], *,
     actual = checked(['/usr/bin/git', '-C', str(destination), 'symbolic-ref', '--short', 'HEAD'], env=env)
     upstream = checked(['/usr/bin/git', '-C', str(destination), 'rev-parse', '--abbrev-ref', '@{upstream}'], env=env)
     if actual.strip() != branch.encode() or upstream.strip() != b'origin/'+branch.encode():
-        raise InstallError('managed clone is not tracking origin/mcr/main')
+        raise InstallError(f'managed clone is not tracking origin/{branch}')
     # -c core.hooksPath is process-only; no installer agent/config path persists.
 
 
@@ -454,12 +490,15 @@ def copy_private_checkout(source: int, destination: int, uid: int, gid: int) -> 
 
 
 def clone_netscape(account: pwd.struct_passwd, home: Path, stage: Path,
-                   agent_env: dict[str, str], *, url: str, branch: str) -> None:
+                   agent_env: dict[str, str], *, url: str, branch: str,
+                   policy: dict[str, str]) -> None:
     """Publish a private checkout atomically, preserving any existing user files."""
-    if (url, branch) != (NETSCAPE_URL, NETSCAPE_BRANCH):
+    if (url, branch) != (policy['netscape_url'], policy['netscape_branch']):
         raise InstallError('unapproved browser repository or branch')
     if account.pw_uid == 0 or not home.is_absolute() or home.resolve(strict=True) != home:
         raise InstallError('unsafe browser checkout home')
+    directory = PurePosixPath(policy['netscape_directory'])
+    workspace_name, checkout_name = directory.parts
     home_fd = os.open(home, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW)
     try:
         info = os.fstat(home_fd)
@@ -468,29 +507,29 @@ def clone_netscape(account: pwd.struct_passwd, home: Path, stage: Path,
             raise InstallError('browser checkout home must be account-owned mode 0700')
         created = False
         try:
-            os.mkdir('Workspace', 0o700, dir_fd=home_fd)
+            os.mkdir(workspace_name, 0o700, dir_fd=home_fd)
             created = True
         except FileExistsError:
             pass
-        workspace_fd = os.open('Workspace', os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW, dir_fd=home_fd)
+        workspace_fd = os.open(workspace_name, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW, dir_fd=home_fd)
         try:
             if created:
                 if os.fstat(workspace_fd).st_uid != 0:
-                    raise InstallError('browser Workspace changed during creation')
+                    raise InstallError('browser checkout parent changed during creation')
                 os.fchown(workspace_fd, account.pw_uid, account.pw_gid)
                 os.fchmod(workspace_fd, 0o700)
             info = os.fstat(workspace_fd)
             if (info.st_uid != account.pw_uid or info.st_gid != account.pw_gid
                     or stat.S_IMODE(info.st_mode) != 0o700):
-                raise InstallError('browser Workspace must be account-owned mode 0700')
+                raise InstallError('browser checkout parent must be account-owned mode 0700')
             try:
-                os.stat('netscape', dir_fd=workspace_fd, follow_symlinks=False)
+                os.stat(checkout_name, dir_fd=workspace_fd, follow_symlinks=False)
             except FileNotFoundError:
                 pass
             else:
                 raise InstallError('browser checkout already exists; refusing to replace user files')
             source = stage/'repository'
-            clone(source, stage, agent_env, url=url, branch=branch)
+            clone(source, stage, agent_env, url=url, branch=branch, policy=policy)
             # The home filesystem can differ from /tmp. Pin both ends of the
             # final rename so account-writable path components cannot redirect it.
             candidate = '.netscape-clone.' + secrets.token_hex(12)
@@ -516,7 +555,8 @@ def clone_netscape(account: pwd.struct_passwd, home: Path, stage: Path,
                 libc = ctypes.CDLL(None, use_errno=True)
                 libc.renameat2.argtypes = (ctypes.c_int, ctypes.c_char_p, ctypes.c_int,
                                            ctypes.c_char_p, ctypes.c_uint)
-                if libc.renameat2(candidate_fd, b'repository', workspace_fd, b'netscape', 1) != 0:
+                if libc.renameat2(candidate_fd, b'repository', workspace_fd,
+                                  os.fsencode(checkout_name), 1) != 0:
                     raise OSError(ctypes.get_errno(), 'cannot publish browser checkout without replacement')
                 os.fsync(workspace_fd)
             finally:
@@ -541,22 +581,25 @@ def clone_netscape(account: pwd.struct_passwd, home: Path, stage: Path,
 
 
 def clone_obsidian(account: pwd.struct_passwd, home: Path, stage: Path,
-                   agent_env: dict[str, str]) -> None:
+                   agent_env: dict[str, str], policy: dict[str, str]) -> None:
     """Clone privately; publish a complete user-owned checkout without replacement."""
-    syncthing = home/'Syncthing'
-    for path in (home, syncthing):
+    directory = PurePosixPath(policy['obsidian_directory'])
+    parent_name, checkout_name = directory.parts
+    checkout_parent = home/parent_name
+    for path in (home, checkout_parent):
         info = path.lstat()
         if (not stat.S_ISDIR(info.st_mode) or info.st_uid != account.pw_uid
                 or info.st_gid != account.pw_gid or stat.S_IMODE(info.st_mode) != 0o700):
             raise InstallError('unsafe Obsidian checkout parent')
-    final = syncthing/'obsidian-md'
+    final = checkout_parent/checkout_name
     if final.exists() or final.is_symlink():
         raise InstallError('Obsidian checkout already exists; refusing to replace user files')
     source = stage/'repository'
-    clone(source, stage, agent_env, url=OBSIDIAN_URL, branch=OBSIDIAN_BRANCH)
+    clone(source, stage, agent_env,
+          url=policy['obsidian_url'], branch=policy['obsidian_branch'], policy=policy)
     # The target is on the home filesystem, which may differ from /tmp. Keep
     # the unpublished copy root-only until every entry is owned by the user.
-    candidate = Path(tempfile.mkdtemp(prefix='.obsidian-clone.', dir=syncthing))
+    candidate = Path(tempfile.mkdtemp(prefix='.obsidian-clone.', dir=checkout_parent))
     try:
         candidate.chmod(0o700)
         tree = candidate/'repository'
@@ -603,10 +646,13 @@ def main() -> int:
     for signum in (signal.SIGTERM, signal.SIGINT, signal.SIGHUP):
         signal.signal(signum, lambda number, _frame: sys.exit(128 + number))
     try:
+        policy = repository_policy() if args.action.startswith('clone-') else {}
         if (args.action == 'seal') != (args.gpg_fingerprint is not None):
             raise InstallError('--gpg-fingerprint is required only for the seal action')
         if args.action == 'clone-netscape':
-            if (args.repository_url, args.repository_branch) != (NETSCAPE_URL, NETSCAPE_BRANCH):
+            if (args.repository_url, args.repository_branch) != (
+                policy['netscape_url'], policy['netscape_branch']
+            ):
                 raise InstallError('clone-netscape requires the approved SSH repository and branch')
         elif args.repository_url is not None or args.repository_branch is not None:
             raise InstallError('repository options are accepted only for clone-netscape')
@@ -644,15 +690,17 @@ def main() -> int:
             elif args.action == 'clone-codex':
                 if args.destination is None:
                     raise InstallError('Codex clone destination is required')
-                clone(args.destination, args.stage, env)
+                clone(args.destination, args.stage, env,
+                      url=policy['codex_url'], branch=policy['codex_branch'], policy=policy)
             else:
                 if read_direct(home/'.local/share/ssh/private/id_git_ed25519', 16384, account.pw_uid) != private:
                     raise InstallError('installed SSH identity differs from the initrd identity')
                 if args.action == 'clone-netscape':
                     clone_netscape(account, home, args.stage, env,
-                                   url=args.repository_url, branch=args.repository_branch)
+                                   url=args.repository_url, branch=args.repository_branch,
+                                   policy=policy)
                 else:
-                    clone_obsidian(account, home, args.stage, env)
+                    clone_obsidian(account, home, args.stage, env, policy)
     except CleanupUnknown as exc:
         marker = args.stage / 'cleanup-outcome-unknown'
         try:

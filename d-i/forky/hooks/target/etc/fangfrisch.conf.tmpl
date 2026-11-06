@@ -12,13 +12,13 @@ on_update_timeout = 5
 
 [sanesecurity]
 enabled = yes
-prefix = https://mirror.seichter.de/sanesecurity/
+prefix = __INSTALLER_FANGFRISCH_SANESECURITY_PREFIX__
 
 [urlhaus]
 # Enabled privately by the installer only when PRESEED_URLHAUS_AUTHKEY is set.
 enabled = no
 auth_key =
 interval = 10m
-url_urlhaus = https://urlhaus-api.abuse.ch/v2/files/exports/${auth_key}/urlhaus_clamav.ndb
+url_urlhaus = __INSTALLER_FANGFRISCH_URLHAUS_FEED_BASE__/${auth_key}/urlhaus_clamav.ndb
 filename_urlhaus = urlhaus_clamav.ndb
 max_size = 40MB

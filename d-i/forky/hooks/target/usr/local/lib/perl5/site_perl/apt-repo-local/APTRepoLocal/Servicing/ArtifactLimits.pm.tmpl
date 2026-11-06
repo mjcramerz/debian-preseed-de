@@ -1,0 +1,14 @@
+package APTRepoLocal::Servicing::ArtifactLimits;
+
+use strict;
+use warnings;
+use Exporter qw(import);
+
+our @EXPORT_OK = qw(MAX_DEB_BYTES MAX_DOWNLOAD_BYTES);
+
+# These ceilings are rendered from shared-de.env and are kept in sync with the
+# Python publisher helper during installer staging.
+use constant MAX_DOWNLOAD_BYTES => __INSTALLER_SOFTWARE_APT_REPO_LOCAL_DOWNLOAD_MAXIMUM_BYTES__;
+use constant MAX_DEB_BYTES      => __INSTALLER_SOFTWARE_APT_REPO_LOCAL_DEB_MAXIMUM_BYTES__;
+
+1;

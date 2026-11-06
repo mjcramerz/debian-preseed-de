@@ -394,7 +394,7 @@ installer_load_source_library() {
 installer_cuda_source_line() (
   set -eu
   repository=$1; suite=$2; components=${3:-}
-  [ "$repository" = https://developer.download.nvidia.com/compute/cuda/repos/debian12/x86_64/ ] || {
+  [ "$repository" = "$CUDA_LEGACY_REPOSITORY_URL" ] || {
     installer_fatal 'legacy CUDA is limited to the Debian 12 amd64 archive'; exit 1;
   }
   [ "$suite" = / ] && [ -z "$components" ] || {

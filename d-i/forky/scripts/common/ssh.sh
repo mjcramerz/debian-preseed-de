@@ -510,10 +510,38 @@ managed_git_ssh_target_action() (
   fi
   # These files are encrypted key material only. The passphrase goes through
   # stdin, then a sealed Linux memfd used by SSH_ASKPASS, never a disk file.
-  printf '%s' "$secret" | chroot "$target" /usr/bin/env -i \
-    HOME=/root USER=root LOGNAME=root PATH=/usr/sbin:/usr/bin:/sbin:/bin LC_ALL=C.UTF-8 \
-    /usr/bin/python3 -I -B "${stage#"$target"}/ssh-install.py" \
-    "$action" "$ACCOUNT_USERNAME" "${stage#"$target"}" "$@"
+  case "$action" in
+    clone-*)
+      : "${DEVOPS_CODEX_REPOSITORY_URL:?shared Codex repository URL is required for managed Git clones}"
+      : "${DEVOPS_CODEX_REPOSITORY_BRANCH:?shared Codex repository branch is required for managed Git clones}"
+      : "${OBSIDIAN_GIT_REPOSITORY_URL:?shared Obsidian repository URL is required for managed Git clones}"
+      : "${OBSIDIAN_GIT_REPOSITORY_BRANCH:?shared Obsidian repository branch is required for managed Git clones}"
+      : "${OBSIDIAN_GIT_DIRECTORY:?shared Obsidian checkout path is required for managed Git clones}"
+      : "${BROWSER_NETSCAPE_REPOSITORY_URL:?shared browser repository URL is required for managed Git clones}"
+      : "${BROWSER_NETSCAPE_REPOSITORY_BRANCH:?shared browser repository branch is required for managed Git clones}"
+      : "${BROWSER_NETSCAPE_DIRECTORY:?shared browser checkout path is required for managed Git clones}"
+      : "${DEVOPS_CODEX_ROOT:?shared Codex root is required for managed Git clones}"
+      printf '%s' "$secret" | chroot "$target" /usr/bin/env -i \
+      HOME=/root USER=root LOGNAME=root PATH=/usr/sbin:/usr/bin:/sbin:/bin LC_ALL=C.UTF-8 \
+      DEVOPS_CODEX_REPOSITORY_URL="$DEVOPS_CODEX_REPOSITORY_URL" \
+      DEVOPS_CODEX_REPOSITORY_BRANCH="$DEVOPS_CODEX_REPOSITORY_BRANCH" \
+      OBSIDIAN_GIT_REPOSITORY_URL="$OBSIDIAN_GIT_REPOSITORY_URL" \
+      OBSIDIAN_GIT_REPOSITORY_BRANCH="$OBSIDIAN_GIT_REPOSITORY_BRANCH" \
+      OBSIDIAN_GIT_DIRECTORY="$OBSIDIAN_GIT_DIRECTORY" \
+      BROWSER_NETSCAPE_REPOSITORY_URL="$BROWSER_NETSCAPE_REPOSITORY_URL" \
+      BROWSER_NETSCAPE_REPOSITORY_BRANCH="$BROWSER_NETSCAPE_REPOSITORY_BRANCH" \
+      BROWSER_NETSCAPE_DIRECTORY="$BROWSER_NETSCAPE_DIRECTORY" \
+      DEVOPS_CODEX_ROOT="$DEVOPS_CODEX_ROOT" \
+      /usr/bin/python3 -I -B "${stage#"$target"}/ssh-install.py" \
+      "$action" "$ACCOUNT_USERNAME" "${stage#"$target"}" "$@"
+      ;;
+    *)
+      printf '%s' "$secret" | chroot "$target" /usr/bin/env -i \
+      HOME=/root USER=root LOGNAME=root PATH=/usr/sbin:/usr/bin:/sbin:/bin LC_ALL=C.UTF-8 \
+      /usr/bin/python3 -I -B "${stage#"$target"}/ssh-install.py" \
+      "$action" "$ACCOUNT_USERNAME" "${stage#"$target"}" "$@"
+      ;;
+  esac
 )
 
 provision_target_git_ssh_identity() {

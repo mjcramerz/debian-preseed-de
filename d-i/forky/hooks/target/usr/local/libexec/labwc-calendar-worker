@@ -33,7 +33,6 @@ from icalendar import Calendar, Event, Todo, Timezone
 
 DAV = '{DAV:}'
 CAL = '{urn:ietf:params:xml:ns:caldav}'
-ORIGIN = 'https://dav.fruux.com'
 MAX_BODY = 4 * 1024 * 1024
 MAX_RESOURCE = 256 * 1024
 MAX_ITEMS = 500
@@ -59,13 +58,27 @@ def text(value, maximum: int = 4096, *, empty: bool = True) -> str:
     return value
 
 
-def href(value: str, base: str = ORIGIN + '/') -> str:
+def configured_origin() -> str:
+    home = Path(pwd.getpwuid(os.getuid()).pw_dir)
+    data = private_json(home / '.config/calix/fruux-account.json', home)
+    server = data.get('server')
+    require(isinstance(server, str) and server, 'unsafe-server-url')
+    parsed = urllib.parse.urlsplit(server)
+    require(parsed.scheme == 'https' and parsed.hostname and not parsed.username
+            and not parsed.password and not parsed.query and not parsed.fragment
+            and parsed.port in (None, 443) and parsed.path in ('', '/'), 'unsafe-server-url')
+    return server.rstrip('/')
+
+
+def href(value: str, base: str | None = None) -> str:
+    origin = configured_origin()
+    base = base or origin + '/'
     text(value, empty=False)
     require(not any(ord(c) < 33 or ord(c) == 127 for c in value), 'unsafe-server-url')
     url = urllib.parse.urljoin(base, value)
     parsed = urllib.parse.urlsplit(url)
     decoded = urllib.parse.unquote(parsed.path, errors='strict')
-    require(parsed.scheme == 'https' and parsed.netloc == 'dav.fruux.com'
+    require(parsed.scheme == 'https' and parsed.netloc == urllib.parse.urlsplit(origin).netloc
             and not parsed.query and not parsed.fragment and decoded.startswith('/')
             and '\\' not in decoded and '//' not in decoded
             and '%' not in decoded
@@ -103,8 +116,9 @@ def credentials(*, unlock=True) -> tuple[str, str]:
     home = Path(pwd.getpwuid(os.getuid()).pw_dir)
     require(Path.home() == home, 'unsafe-account')
     data = private_json(home / '.config/calix/fruux-account.json', home)
+    origin = configured_origin()
     require(set(data) == {'version', 'server', 'username'} and data['version'] == 1
-            and data['server'] == ORIGIN, 'unsafe-account')
+            and data['server'] == origin, 'unsafe-account')
     username = text(data['username'], 4096, empty=False)
     require(username == username.strip() and ':' not in username
             and not any(ord(c) < 32 for c in username), 'unsafe-account')
@@ -119,7 +133,7 @@ def credentials(*, unlock=True) -> tuple[str, str]:
     if unlock:
         flags |= Secret.SearchFlags.UNLOCK
     items = service.search_sync(schema, {'service': 'com.ianswope.Calix',
-        'username': 'caldav-password:' + ORIGIN + '|' + username.lower()},
+        'username': 'caldav-password:' + origin + '|' + username.lower()},
         flags, None)
     require(len(items) == 1 and items[0].get_secret() is not None, 'keyring-unavailable')
     password = text(items[0].get_secret().get_text(), 4096, empty=False)
@@ -384,7 +398,7 @@ def multistatus(body: bytes, base: str, *, allow_missing=False) -> list[tuple[st
 
 
 def discovery(client: Client, kind: str) -> list[dict]:
-    rows = client.properties(ORIGIN + '/', [DAV + 'current-user-principal'])
+    rows = client.properties(configured_origin() + '/', [DAV + 'current-user-principal'])
     require(len(rows) == 1, 'discovery-failed')
     principal = rows[0][1].get(DAV + 'current-user-principal')
     require(principal is not None and len(principal.findall(DAV + 'href')) == 1, 'discovery-failed')

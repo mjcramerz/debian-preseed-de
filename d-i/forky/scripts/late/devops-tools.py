@@ -94,6 +94,7 @@ POLICY_KEYS = frozenset(
         "DEVOPS_YT_DLP_BINARY_PATH",
         "DEVOPS_YT_DLP_PAYLOAD_PATH",
         "DEVOPS_YT_DLP_PLUGINS_MANIFEST_PATH",
+        "DEVOPS_YT_DLP_EJS_VERSION",
         "DEVOPS_ANSIBLE_CORE_VERSION",
         "DEVOPS_ANSIBLE_CORE_URL",
         "DEVOPS_ANSIBLE_CORE_SHA256",
@@ -458,6 +459,7 @@ def plugin_redirect_url(value: object, label: str) -> str:
 def load_yt_dlp_plugin_manifest(
     path: pathlib.Path,
     yt_dlp_version: str,
+    ejs_version: str,
 ) -> tuple[tuple[PluginFile, ...], str]:
     if path != pathlib.Path("/tmp/installer-yt-dlp-plugins.json"):
         fail("yt-dlp plugin manifest path is outside the managed temporary path")
@@ -480,7 +482,7 @@ def load_yt_dlp_plugin_manifest(
         fail("unsupported yt-dlp plugin manifest schema")
     if manifest.get("yt_dlp_version") != yt_dlp_version:
         fail("yt-dlp plugin manifest does not match the pinned executable")
-    if manifest.get("ejs_version") != "0.8.0":
+    if manifest.get("ejs_version") != ejs_version:
         fail("yt-dlp plugin manifest does not match the pinned yt-dlp-ejs release")
     plugins = manifest.get("plugins")
     if not isinstance(plugins, list) or not plugins or len(plugins) > 32:
@@ -503,7 +505,6 @@ def load_yt_dlp_plugin_manifest(
         ):
             fail(f"yt-dlp plugin entry {plugin_index} has an invalid identity")
         seen_ids.add(plugin_id)
-        plugin_url(plugin.get("source"), f"plugin {plugin_id} source")
         files = plugin.get("files")
         if not isinstance(files, list) or not files or len(files) > 32:
             fail(f"yt-dlp plugin {plugin_id} has an invalid file count")
@@ -526,6 +527,8 @@ def load_yt_dlp_plugin_manifest(
             if not isinstance(expected_digest, str) or LOWER_HEX_RE.fullmatch(expected_digest) is None or len(expected_digest) != 64:
                 fail(f"yt-dlp plugin {plugin_id} file {file_index} has an invalid SHA-256")
             minimum_bytes = file_item.get("size")
+            if isinstance(minimum_bytes, str) and re.fullmatch(r"[1-9][0-9]*", minimum_bytes):
+                minimum_bytes = int(minimum_bytes)
             if not isinstance(minimum_bytes, int) or minimum_bytes < 1 or minimum_bytes > 128 * 1024**2:
                 fail(f"yt-dlp plugin {plugin_id} file {file_index} has an invalid size")
             if relative_path in seen_paths or url in seen_urls:
@@ -737,7 +740,7 @@ def load_policy(path: pathlib.Path) -> InstallPolicy:
         values,
         key="osc",
         name="osc",
-        prefix="DEVOPS_OSC_RELEASE",
+        prefix="DEVOPS_OSC",
         version_key="DEVOPS_OSC_RELEASE_VERSION",
         digest_key="DEVOPS_OSC_RELEASE_SHA256",
         digest_algorithm="sha256",
@@ -818,6 +821,8 @@ def load_policy(path: pathlib.Path) -> InstallPolicy:
         fail("Deno architecture policy is unsupported")
     if tuple(int(part) for part in deno.version.split(".")) < (2, 3, 0):
         fail("Deno version is too old for the managed yt-dlp-ejs runtime")
+    if PLUGIN_VERSION_RE.fullmatch(values["DEVOPS_YT_DLP_EJS_VERSION"]) is None:
+        fail("yt-dlp-ejs version policy is malformed")
     if deno.filename != "deno-x86_64-unknown-linux-gnu.zip":
         fail("Deno archive filename does not match the managed architecture")
     validate_https_url(
@@ -862,6 +867,7 @@ def load_policy(path: pathlib.Path) -> InstallPolicy:
     yt_dlp_plugin_files, yt_dlp_plugins_manifest_digest = load_yt_dlp_plugin_manifest(
         yt_dlp_plugins_manifest_path,
         yt_dlp.version,
+        values["DEVOPS_YT_DLP_EJS_VERSION"],
     )
 
     if ansible_core.architecture != "python3-any":

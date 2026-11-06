@@ -10,6 +10,8 @@ devops_install_upstream_tools() {
   policy_host_path="${target_root}${policy_target_path}"
   plugins_manifest_target_path=/tmp/installer-yt-dlp-plugins.json
   plugins_manifest_host_path="${target_root}${plugins_manifest_target_path}"
+  plugins_manifest_source_path="${tmp_env_dir}/yt-dlp-plugins.json.tmpl.$$"
+  plugins_manifest_rendered_path="${tmp_env_dir}/yt-dlp-plugins.json.$$"
 
   [ ! -e "$helper_host_path" ] && [ ! -L "$helper_host_path" ] ||
     devops_fatal "temporary upstream DevOps tool installer path already exists"
@@ -29,9 +31,52 @@ devops_install_upstream_tools() {
   bootstrap_fetch_seed_file \
     "$seed_base" \
     "$(installer_repo_join_var DIR_SCRIPTS_LATE devops/yt-dlp-plugins.json)" \
-    "$plugins_manifest_host_path" \
+    "$plugins_manifest_source_path" \
     0600 \
     "yt-dlp plugin manifest"
+  installer_apply_scalar_placeholders \
+    "$plugins_manifest_source_path" \
+    "$plugins_manifest_rendered_path" \
+    DEVOPS_YT_DLP_VERSION "$DEVOPS_YT_DLP_VERSION" \
+    DEVOPS_YT_DLP_EJS_VERSION "$DEVOPS_YT_DLP_EJS_VERSION" \
+    DEVOPS_YT_DLP_PLUGIN_BGUTIL_VERSION "$DEVOPS_YT_DLP_PLUGIN_BGUTIL_VERSION" \
+    DEVOPS_YT_DLP_PLUGIN_BGUTIL_ZIP_URL "$DEVOPS_YT_DLP_PLUGIN_BGUTIL_ZIP_URL" \
+    DEVOPS_YT_DLP_PLUGIN_BGUTIL_ZIP_SHA256 "$DEVOPS_YT_DLP_PLUGIN_BGUTIL_ZIP_SHA256" \
+    DEVOPS_YT_DLP_PLUGIN_BGUTIL_ZIP_MINIMUM_BYTES "$DEVOPS_YT_DLP_PLUGIN_BGUTIL_ZIP_MINIMUM_BYTES" \
+    DEVOPS_YT_DLP_PLUGIN_BGUTIL_BINARY_URL "$DEVOPS_YT_DLP_PLUGIN_BGUTIL_BINARY_URL" \
+    DEVOPS_YT_DLP_PLUGIN_BGUTIL_BINARY_SHA256 "$DEVOPS_YT_DLP_PLUGIN_BGUTIL_BINARY_SHA256" \
+    DEVOPS_YT_DLP_PLUGIN_BGUTIL_BINARY_MINIMUM_BYTES "$DEVOPS_YT_DLP_PLUGIN_BGUTIL_BINARY_MINIMUM_BYTES" \
+    DEVOPS_YT_DLP_PLUGIN_RAJIKO_VERSION "$DEVOPS_YT_DLP_PLUGIN_RAJIKO_VERSION" \
+    DEVOPS_YT_DLP_PLUGIN_RAJIKO_ZIP_URL "$DEVOPS_YT_DLP_PLUGIN_RAJIKO_ZIP_URL" \
+    DEVOPS_YT_DLP_PLUGIN_RAJIKO_ZIP_SHA256 "$DEVOPS_YT_DLP_PLUGIN_RAJIKO_ZIP_SHA256" \
+    DEVOPS_YT_DLP_PLUGIN_RAJIKO_ZIP_MINIMUM_BYTES "$DEVOPS_YT_DLP_PLUGIN_RAJIKO_ZIP_MINIMUM_BYTES" \
+    DEVOPS_YT_DLP_PLUGIN_APPLE_DEVELOPER_VERSION "$DEVOPS_YT_DLP_PLUGIN_APPLE_DEVELOPER_VERSION" \
+    DEVOPS_YT_DLP_PLUGIN_APPLE_DEVELOPER_MODULE_URL "$DEVOPS_YT_DLP_PLUGIN_APPLE_DEVELOPER_MODULE_URL" \
+    DEVOPS_YT_DLP_PLUGIN_APPLE_DEVELOPER_MODULE_SHA256 "$DEVOPS_YT_DLP_PLUGIN_APPLE_DEVELOPER_MODULE_SHA256" \
+    DEVOPS_YT_DLP_PLUGIN_APPLE_DEVELOPER_MODULE_MINIMUM_BYTES "$DEVOPS_YT_DLP_PLUGIN_APPLE_DEVELOPER_MODULE_MINIMUM_BYTES" \
+    DEVOPS_YT_DLP_PLUGIN_SRT_FIX_VERSION "$DEVOPS_YT_DLP_PLUGIN_SRT_FIX_VERSION" \
+    DEVOPS_YT_DLP_PLUGIN_SRT_FIX_MODULE_URL "$DEVOPS_YT_DLP_PLUGIN_SRT_FIX_MODULE_URL" \
+    DEVOPS_YT_DLP_PLUGIN_SRT_FIX_MODULE_SHA256 "$DEVOPS_YT_DLP_PLUGIN_SRT_FIX_MODULE_SHA256" \
+    DEVOPS_YT_DLP_PLUGIN_SRT_FIX_MODULE_MINIMUM_BYTES "$DEVOPS_YT_DLP_PLUGIN_SRT_FIX_MODULE_MINIMUM_BYTES" \
+    DEVOPS_YT_DLP_PLUGIN_RETURN_YOUTUBE_DISLIKE_VERSION "$DEVOPS_YT_DLP_PLUGIN_RETURN_YOUTUBE_DISLIKE_VERSION" \
+    DEVOPS_YT_DLP_PLUGIN_RETURN_YOUTUBE_DISLIKE_MODULE_URL "$DEVOPS_YT_DLP_PLUGIN_RETURN_YOUTUBE_DISLIKE_MODULE_URL" \
+    DEVOPS_YT_DLP_PLUGIN_RETURN_YOUTUBE_DISLIKE_MODULE_SHA256 "$DEVOPS_YT_DLP_PLUGIN_RETURN_YOUTUBE_DISLIKE_MODULE_SHA256" \
+    DEVOPS_YT_DLP_PLUGIN_RETURN_YOUTUBE_DISLIKE_MODULE_MINIMUM_BYTES "$DEVOPS_YT_DLP_PLUGIN_RETURN_YOUTUBE_DISLIKE_MODULE_MINIMUM_BYTES" \
+    DEVOPS_YT_DLP_PLUGIN_FIXUP_MTIME_VERSION "$DEVOPS_YT_DLP_PLUGIN_FIXUP_MTIME_VERSION" \
+    DEVOPS_YT_DLP_PLUGIN_FIXUP_MTIME_MODULE_URL "$DEVOPS_YT_DLP_PLUGIN_FIXUP_MTIME_MODULE_URL" \
+    DEVOPS_YT_DLP_PLUGIN_FIXUP_MTIME_MODULE_SHA256 "$DEVOPS_YT_DLP_PLUGIN_FIXUP_MTIME_MODULE_SHA256" \
+    DEVOPS_YT_DLP_PLUGIN_FIXUP_MTIME_MODULE_MINIMUM_BYTES "$DEVOPS_YT_DLP_PLUGIN_FIXUP_MTIME_MODULE_MINIMUM_BYTES" || {
+      rm -f -- "$plugins_manifest_source_path" "$plugins_manifest_rendered_path"
+      devops_fatal "failed to render yt-dlp plugin manifest"
+    }
+  installer_assert_no_unresolved_installer_placeholders \
+    "$plugins_manifest_rendered_path" \
+    "yt-dlp plugin manifest" || {
+      rm -f -- "$plugins_manifest_source_path" "$plugins_manifest_rendered_path"
+      devops_fatal "yt-dlp plugin manifest has unresolved installer placeholders"
+    }
+  install -m 0600 "$plugins_manifest_rendered_path" "$plugins_manifest_host_path"
+  rm -f -- "$plugins_manifest_source_path" "$plugins_manifest_rendered_path"
   chown root:root "$plugins_manifest_host_path"
 
   if ! run_in_target \
@@ -86,6 +131,7 @@ except BaseException:
       DEVOPS_YT_DLP_INSTALL_ROOT "$DEVOPS_YT_DLP_INSTALL_ROOT" \
       DEVOPS_YT_DLP_BINARY_PATH "$DEVOPS_YT_DLP_BINARY_PATH" \
       DEVOPS_YT_DLP_PAYLOAD_PATH "$DEVOPS_YT_DLP_PAYLOAD_PATH" \
+      DEVOPS_YT_DLP_EJS_VERSION "$DEVOPS_YT_DLP_EJS_VERSION" \
       DEVOPS_YT_DLP_PLUGINS_MANIFEST_PATH "$plugins_manifest_target_path" \
       DEVOPS_ANSIBLE_CORE_VERSION "$DEVOPS_ANSIBLE_CORE_VERSION" \
       DEVOPS_ANSIBLE_CORE_URL "$DEVOPS_ANSIBLE_CORE_URL" \
@@ -186,7 +232,8 @@ except BaseException:
     devops_fatal "upstream DevOps tool provisioning failed"
   fi
   rm -f -- "$helper_host_path" "$policy_host_path" "$plugins_manifest_host_path"
-  unset plugins_manifest_target_path plugins_manifest_host_path
+  unset plugins_manifest_target_path plugins_manifest_host_path \
+    plugins_manifest_source_path plugins_manifest_rendered_path
 }
 
 devops_install_pinned_rustup() {
@@ -221,10 +268,12 @@ rustup_version=$1
 rustup_url=$2
 expected_sha256=$3
 minimum_bytes=$4
-target_triple=$5
-install_dir=$6
-rustup_init_path=$7
-download_timeout=$8
+maximum_bytes=$5
+target_triple=$6
+install_dir=$7
+rustup_init_path=$8
+download_timeout=$9
+rustup_archive_filename=${rustup_url##*/}
 install_parent=${install_dir%/*}
 binary_dir=${rustup_init_path%/*}
 
@@ -233,12 +282,23 @@ printf "%s\n" "$rustup_version" |
   rustup_fatal "Rustup version is not semantic"
 [ "$target_triple" = x86_64-unknown-linux-gnu ] ||
   rustup_fatal "Rustup target triple is not the managed Linux AMD64 target"
-[ "$rustup_url" = "https://static.rust-lang.org/rustup/archive/${rustup_version}/${target_triple}/rustup-init" ] ||
-  rustup_fatal "Rustup source URL is not the versioned official Linux AMD64 bootstrap"
-[ "$install_dir" = /usr/local/lib/rustup ] ||
-  rustup_fatal "Rustup install root is outside the managed release root"
-[ "$rustup_init_path" = "${install_dir}/bin/rustup-init" ] ||
-  rustup_fatal "Rustup binary path does not match the managed install root"
+case "$rustup_url" in
+  https://*/*) ;;
+  *) rustup_fatal "Rustup source URL must be HTTPS and include a release filename" ;;
+esac
+[ -n "$rustup_archive_filename" ] ||
+  rustup_fatal "Rustup source URL has no release filename"
+case "$rustup_archive_filename" in
+  */*) rustup_fatal "Rustup source URL filename must not contain a slash" ;;
+esac
+case "$install_dir" in
+  /*|/*/*) ;;
+  *) rustup_fatal "Rustup install root must be absolute" ;;
+esac
+case "$rustup_init_path" in
+  "$install_dir"/*) ;;
+  *) rustup_fatal "Rustup binary path must be below the managed install root" ;;
+esac
 [ "${#expected_sha256}" -eq 64 ] ||
   rustup_fatal "Rustup SHA-256 must contain 64 lowercase hexadecimal characters"
 case "$expected_sha256" in
@@ -247,8 +307,9 @@ case "$expected_sha256" in
     ;;
 esac
 rustup_validate_positive_integer "minimum byte count" "$minimum_bytes"
-maximum_bytes=$((minimum_bytes * 8))
-[ "$maximum_bytes" -ge 8388608 ] || maximum_bytes=8388608
+rustup_validate_positive_integer "maximum byte count" "$maximum_bytes"
+[ "$maximum_bytes" -ge "$minimum_bytes" ] ||
+  rustup_fatal "maximum byte count is smaller than its minimum"
 rustup_validate_positive_integer "download timeout" "$download_timeout"
 
 for required_command in awk chown curl grep install mktemp rm sha256sum tr wc; do
@@ -269,7 +330,7 @@ cleanup() {
 }
 trap cleanup EXIT HUP INT TERM
 
-payload_path="${staging_dir}/rustup-init"
+payload_path="${staging_dir}/${rustup_archive_filename}"
 curl \
   --fail \
   --silent \
@@ -322,6 +383,7 @@ printf "installed Rustup %s bootstrap at %s\n" "$rustup_version" "$rustup_init_p
     "$DEVOPS_RUSTUP_URL" \
     "$DEVOPS_RUSTUP_SHA256" \
     "$DEVOPS_RUSTUP_MINIMUM_BYTES" \
+    "$DEVOPS_RUSTUP_MAXIMUM_BYTES" \
     "$DEVOPS_RUSTUP_TARGET_TRIPLE" \
     "$DEVOPS_RUSTUP_INSTALL_ROOT" \
     "$DEVOPS_RUSTUP_BINARY_PATH" \

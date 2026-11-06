@@ -1,4 +1,5 @@
 #!/bin/sh
+# shellcheck disable=SC2154
 # Sourced installer module; edit this file directly.
 
 devops_target_passwd_ids() {
@@ -85,10 +86,10 @@ done
     "$DIR_POOL_BUILD" \
     "$DIR_POOL_CACHE" \
     "$DIR_POOL_DB" \
-    "$DEVOPS_OSC_BUILD_SUBDIR" \
-    "$DEVOPS_OSC_CACHE_SUBDIR" \
+    "$DEVOPS_OSC_SUBDIR" \
+    "$DEVOPS_OSC_SUBDIR" \
     "$DEVOPS_APTLY_ROOT_SUBDIR" \
-    "$DEVOPS_OSC_STATE_SUBDIR"
+    "$DEVOPS_OSC_SUBDIR"
 }
 
 devops_render_aptly_config() {
@@ -135,4 +136,3 @@ devops_render_aptly_config() {
     /usr/bin/python3 -m json.tool "$APTLY_CONFIG" >/dev/null
   rm -f -- "$template_tmp" "$rendered_tmp"
 }
-

@@ -118,7 +118,7 @@ def build_commands(request: dict, job: Path, cache: Path, arch: str) -> list[lis
     if kind == 'bootstrap':
         return [['/usr/bin/mmdebstrap', '--mode=unshare', '--variant=buildd', '--format=tar',
                  '--architectures=' + arch, '--components=main', '--include=ca-certificates',
-                 'forky', '-', 'https://deb.debian.org/debian']]
+                 'forky', '-', '__INSTALLER_DEVOPS_GITBUILD_BOOTSTRAP_MIRROR_URL__']]
     if kind in {'init', 'source', 'binary', 'local', 'deps'}:
         if not re.fullmatch(r'[a-z0-9][A-Za-z0-9.+~\-]+', source):
             raise ValueError('invalid source directory')
