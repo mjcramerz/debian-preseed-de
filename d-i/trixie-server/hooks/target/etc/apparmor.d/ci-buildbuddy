@@ -1,0 +1,25 @@
+#include <tunables/global>
+
+profile ci-buildbuddy /usr/local/libexec/buildbuddy {
+  #include <abstractions/base>
+  /usr/local/libexec/buildbuddy rix,
+  /etc/system-config/ci-runners/buildbuddy.yaml r,
+  /etc/ssl/certs/** r,
+  /pool/db/buildbuddy/** rwk,
+  /pool/cache/buildbuddy/** rwk,
+  /pool/podman/users/buildbuddy/** rwk,
+  /run/buildbuddy/** rw,
+  network inet stream,
+  network inet6 stream,
+  deny /preseed.env r,
+  deny /target/** rwx,
+  deny /root/** rwx,
+  deny /pool/build/runners/** rwx,
+  deny /pool/cache/runners/github/** rwx,
+  deny /pool/cache/runners/gitlab/** rwx,
+  deny /pool/podman/users/github-runner/** rwx,
+  deny /pool/podman/users/gitlab-runner/** rwx,
+  deny /run/systemd/private rw,
+  deny /run/dbus/** rw,
+}
+

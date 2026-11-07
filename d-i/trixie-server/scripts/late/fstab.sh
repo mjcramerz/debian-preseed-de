@@ -2,8 +2,11 @@
 set -eu
 umask 077
 
-target=${1:-/target}
+source_dir=${1:-/tmp/server-install}
+target=${2:-/target}
 [ -d "$target" ] && [ ! -L "$target" ] || { printf '%s\n' 'fatal: target root is unavailable' >&2; exit 1; }
+. "$source_dir/repo.env"
+. "$source_dir/$DIR_HOSTS_INSTALLER/runtime.env"
 fstab="$target/etc/fstab"
 [ -f "$fstab" ] && [ ! -L "$fstab" ] || { printf '%s\n' 'fatal: partman did not produce fstab' >&2; exit 1; }
 
@@ -27,7 +30,11 @@ append_btrfs_subvolume() {
 
 filesystem=btrfs
 if [ -r "$target/etc/system-config/profile.env" ]; then
-  filesystem=$(awk -F= '$1 == "SERVER_FILESYSTEM" {print $2; found=1} END {if (!found) exit 1}' "$target/etc/system-config/profile.env") || filesystem=btrfs
+  recipe=$(awk -F= '$1 == "PARTMAN_RECIPE_NAME" {print $2; found=1} END {if (!found) exit 1}' "$target/etc/system-config/profile.env") || recipe=
+  case "$recipe" in
+    f2fs-*) filesystem=f2fs ;;
+    btrfs-*) filesystem=btrfs ;;
+  esac
 fi
 if [ "$filesystem" = btrfs ]; then
   append_btrfs_subvolume ROOT /home @home

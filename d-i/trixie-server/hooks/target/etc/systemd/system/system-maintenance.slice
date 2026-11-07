@@ -1,0 +1,7 @@
+# Managed by unattended-installer.
+# The system- prefix deliberately places this class beneath system.slice.
+[Unit]
+Description=Noninteractive scheduled system maintenance
+Documentation=man:systemd.resource-control(5)
+
+[Slice]

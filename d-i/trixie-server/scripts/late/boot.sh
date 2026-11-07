@@ -6,6 +6,9 @@ source_dir=${1:-}
 target=${2:-/target}
 profile=${3:-btrfs-srv-flex}
 [ -d "$source_dir" ] && [ -d "$target" ] || { printf '%s\n' 'fatal: boot stage paths are unavailable' >&2; exit 1; }
+. "$source_dir/repo.env"
+. "$source_dir/$DIR_HOSTS_INSTALLER/runtime.env"
+. "$source_dir/$DIR_HOSTS_INSTALLER/boot.env"
 # shellcheck disable=SC1090
 . "$source_dir/scripts/common/forky.sh"
 # shellcheck disable=SC1090
@@ -21,7 +24,7 @@ trap 'rm -rf "$stage"' EXIT HUP INT TERM
 fetch() {
   relative=$1
   destination="$stage/${relative##*/}"
-  server_forky_fetch "$forky_base" "hooks/target/$relative" "$destination" 0600
+  server_forky_fetch "$forky_base" "$FORKY_HOOKS_TARGET/$relative" "$destination" 0600
   printf '%s\n' "$destination"
 }
 grub_profiles=$(fetch etc/default/grub-profiles.tmpl)
@@ -41,11 +44,13 @@ render() {
   server_forky_render "$template" "$destination" 0644 "$@"
 }
 
+filesystem=${PARTMAN_RECIPE_NAME%%-*}
+
 install -d -m 0755 "$target/etc/default/grub.d" "$target/etc/default"
 render "$bootprofiles" "$target/etc/default/grub.d/05-bootprofiles.cfg" \
   GRUB_DEFAULT_ENTRY "$GRUB_DEFAULT_ENTRY"
 render "$rootfs" "$target/etc/default/grub.d/10-rootfs.cfg" \
-  GRUB_ROOT_FLAGS "rootfstype=${SERVER_FILESYSTEM:-btrfs}"
+  GRUB_ROOT_FLAGS "rootfstype=$filesystem"
 render "$initramfs" "$target/etc/default/grub.d/15-initramfs.cfg" \
   GRUB_INITRAMFS_FLAGS "$GRUB_INITRAMFS_FLAGS"
 render "$systemd_mask" "$target/etc/default/grub.d/25-systemd-mask.cfg" \
@@ -62,7 +67,7 @@ render "$grub_profiles" "$target/etc/default/grub-profiles" \
   GRUB_CONFIG_BOOTPROFILE_DEFAULT "$BOOTPROFILE_DEFAULT" \
   GRUB_CONFIG_BOOTPROFILE_PERFORMANCE "$BOOTPROFILE_PERFORMANCE" \
   GRUB_CONFIG_BOOTPROFILE_HARDENED "$BOOTPROFILE_HARDENED" \
-  GRUB_CONFIG_GRUB_ROOT_FLAGS "rootfstype=${SERVER_FILESYSTEM:-btrfs}" \
+  GRUB_CONFIG_GRUB_ROOT_FLAGS "rootfstype=$filesystem" \
   GRUB_CONFIG_GRUB_INITRAMFS_FLAGS "$GRUB_INITRAMFS_FLAGS" \
   GRUB_CONFIG_GRUB_CGROUP_FLAGS "$GRUB_CGROUP_FLAGS" \
   GRUB_CONFIG_GRUB_SECURITY_CORE_FLAGS "$GRUB_SECURITY_CORE_FLAGS" \

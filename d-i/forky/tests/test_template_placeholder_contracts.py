@@ -191,15 +191,23 @@ class TemplateMapContracts(unittest.TestCase):
 
     def test_dynamic_desktop_maps_cover_every_selected_template(self):
         core = (COMPONENTS / 'core-renderers.sh.tmpl').read_text(encoding='utf-8')
-        config_call = next(record for _, record in commands(core)
-                           if record.strip().startswith('desktop_render_waybar_asset config '))
-        keys = {arg for arg in shlex.split(config_call)[2:]
-                if re.fullmatch(r'[A-Z][A-Z0-9_]*', arg)}
+        config_start = core.index('desktop_render_waybar_config()')
+        config_end = core.index('\n\ndesktop_render_waybar_style()', config_start)
+        config_function = core[config_start:config_end]
+        # The current renderer keeps the mapping in its nested
+        # desktop_render_waybar_config_asset helper rather than on the
+        # call-site that selects the config asset. Read that helper's literal
+        # argument names, then add the geometry map rows emitted by
+        # waybar_geometry.py, including validated shared popup rows.
+        keys = set(re.findall(r'\b(LABWC_[A-Z][A-Z0-9_]*)\b', config_function))
         for line in (SEED / 'scripts/desktop/waybar-geometry.tsv').read_text().splitlines():
             if not line or line.startswith('#'):
                 continue
             key = line.split('\t', 1)[0]
             keys.update('LABWC_WAYBAR_' + kind + '_' + key for kind in ('INTERNAL', 'EXTERNAL'))
+            if (key.startswith('MENU_') or key.startswith('TOOLTIP_') or
+                    key.startswith('POPUP_')) and not key.startswith('MENU_BUTTON_'):
+                keys.add('LABWC_WAYBAR_SHARED_' + key)
         for path in (TARGET / 'etc/skel-desktop/.config/waybar').glob('*.tmpl'):
             with self.subTest(template=str(path.relative_to(TARGET))):
                 self.assertFalse(template_keys(path) - keys)

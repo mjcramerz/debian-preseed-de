@@ -271,7 +271,10 @@ desktop_stage_target_assets() {
   desktop_stage_role_asset etc/skel-desktop/.config/systemd/user/labwc-session-state@prepare.service.d/retain-result.conf /etc/skel-desktop/.config/systemd/user/labwc-session-state@prepare.service.d/retain-result.conf 0644
   desktop_stage_role_asset etc/systemd/system/labwc-admin-action@.service.tmpl /etc/systemd/system/labwc-admin-action@.service 0644
   desktop_stage_role_asset etc/systemd/system/labwc-external-drives-shutdown.service /etc/systemd/system/labwc-external-drives-shutdown.service 0644
-  desktop_stage_role_asset etc/systemd/system/labwc-package-sleep-guard.service.tmpl /etc/systemd/system/labwc-package-sleep-guard.service 0644
+  desktop_render_role_target_template \
+    etc/systemd/system/labwc-package-sleep-guard.service.tmpl \
+    /etc/systemd/system/labwc-package-sleep-guard.service 0644 \
+    LOG_POWER_DIR "$LOG_POWER_DIR"
   desktop_stage_role_asset etc/systemd/system/sleep.target.d/50-package-lock-guard.conf /etc/systemd/system/sleep.target.d/50-package-lock-guard.conf 0644
   desktop_stage_role_asset usr/local/libexec/greetd-power-action-root /usr/local/libexec/greetd-power-action-root 0755
   desktop_stage_role_asset usr/local/libexec/calix-fruux-bootstrap /usr/local/libexec/calix-fruux-bootstrap 0755
@@ -642,11 +645,10 @@ if len(source) > 16384 or re.search(rb"__[A-Z][A-Z0-9_]{2,}__", source):
   desktop_stage_role_asset etc/skel-desktop/.config/systemd/user/labwc-kwallet-portal.service /etc/skel-desktop/.config/systemd/user/labwc-kwallet-portal.service 0644
   desktop_stage_role_asset usr/local/libexec/labwc-hyprpolkit-agent /usr/local/libexec/labwc-hyprpolkit-agent 0755 || return 1
   desktop_stage_role_asset etc/skel-desktop/.config/systemd/user/labwc-output-watch.service /etc/skel-desktop/.config/systemd/user/labwc-output-watch.service 0644
-  desktop_stage_role_asset etc/skel-desktop/.config/systemd/user/codex-app-server.service /etc/skel-desktop/.config/systemd/user/codex-app-server.service 0644
-  desktop_stage_role_asset etc/skel-desktop/.config/systemd/user/codex-app-server-proxy.service /etc/skel-desktop/.config/systemd/user/codex-app-server-proxy.service 0644
-  desktop_stage_role_asset etc/skel-desktop/.config/systemd/user/codex-app-server.socket /etc/skel-desktop/.config/systemd/user/codex-app-server.socket 0644
-  desktop_stage_role_asset etc/codex/app-server.env /etc/codex/app-server.env 0644
-  desktop_stage_role_asset usr/local/libexec/codex-app-server-wait-ready /usr/local/libexec/codex-app-server-wait-ready 0755
+  # The DevOps class helper renders and publishes the Codex units, environment
+  # policy, and readiness helper before the desktop role runs. Do not copy the
+  # source templates here: their installer placeholders must never reach the
+  # target skeleton or overwrite the rendered class-owned files.
   desktop_stage_role_asset etc/skel-desktop/.config/systemd/user/swaybg.service /etc/skel-desktop/.config/systemd/user/swaybg.service 0644
   if desktop_kanshi_enabled; then
     desktop_stage_role_asset etc/skel-desktop/.config/systemd/user/kanshi.service /etc/skel-desktop/.config/systemd/user/kanshi.service 0644

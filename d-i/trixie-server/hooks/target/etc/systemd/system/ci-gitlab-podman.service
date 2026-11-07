@@ -1,7 +1,10 @@
 [Unit]
 Description=GitLab runner rootless Podman API
 Requires=ci-gitlab-podman.socket
-After=ci-gitlab-podman.socket systemd-tmpfiles-setup.service
+After=ci-gitlab-podman.socket systemd-tmpfiles-setup.service network-policy.service nftables.service apparmor.service
+Requires=network-policy.service nftables.service apparmor.service
+StartLimitIntervalSec=10min
+StartLimitBurst=5
 RequiresMountsFor=/pool/build/runners/gitlab /pool/cache/runners/gitlab /pool/db/runners/gitlab /pool/podman/users/gitlab-runner /pool/podman/runners/gitlab /run/ci-runners/gitlab
 
 [Service]
@@ -16,8 +19,7 @@ Environment=TMPDIR=/pool/podman/runners/gitlab/tmp
 Environment=CONTAINERS_CONF=/etc/system-config/ci-runners/podman/gitlab/containers.conf
 Environment=CONTAINERS_STORAGE_CONF=/etc/system-config/ci-runners/podman/gitlab/storage.conf
 Environment=REGISTRIES_CONFIG_PATH=/etc/system-config/ci-runners/podman/gitlab/registries.conf
-EnvironmentFile=-/etc/system-config/ci-runners/podman/gitlab/registry-tls.env
-ExecStart=/usr/bin/podman system service --time=0 unix:///run/ci-runners/gitlab/podman.sock
+ExecStart=/usr/bin/podman system service --time=0
 Delegate=yes
 KillMode=control-group
 TimeoutStartSec=90s
@@ -39,6 +41,12 @@ IOWeight=100
 TasksMax=4096
 MemoryHigh=70%
 MemoryMax=85%
+AppArmorProfile=ci-gitlab-podman
+ProtectProc=invisible
+ProcSubset=pid
+ProtectClock=yes
+DevicePolicy=closed
+CapabilityBoundingSet=
 
 [Install]
 WantedBy=multi-user.target

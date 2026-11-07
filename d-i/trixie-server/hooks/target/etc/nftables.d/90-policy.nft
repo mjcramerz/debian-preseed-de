@@ -3,7 +3,7 @@
 add table inet policy
 add chain inet policy input { type filter hook input priority filter; policy drop; }
 add chain inet policy forward { type filter hook forward priority filter; policy drop; }
-add chain inet policy output { type filter hook output priority filter; policy accept; }
+add chain inet policy output { type filter hook output priority filter; policy drop; }
 add rule inet policy input iifname "lo" accept
 add rule inet policy input ct state established,related accept
 add rule inet policy input ip protocol icmp accept
@@ -13,3 +13,6 @@ add rule inet policy input udp dport 53 accept
 add rule inet policy input tcp dport 53 accept
 add rule inet policy input udp dport 123 accept
 add rule inet policy input tcp dport 32020 ip saddr 192.168.50.0/24 accept
+add rule inet policy output oifname "lo" ip daddr 127.0.0.53 udp dport 53 accept
+add rule inet policy output oifname "lo" ip daddr 127.0.0.53 tcp dport 53 accept
+add rule inet policy output ct state established,related accept

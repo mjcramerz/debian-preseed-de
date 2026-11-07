@@ -6,6 +6,8 @@ source_dir=${1:-}
 target=${2:-/target}
 profile=${3:-btrfs-srv-flex}
 [ -d "$source_dir" ] && [ -d "$target" ] || { printf '%s\n' 'fatal: Codex stage paths are unavailable' >&2; exit 1; }
+. "$source_dir/repo.env"
+. "$source_dir/$DIR_HOSTS_INSTALLER/runtime.env"
 # shellcheck disable=SC1090
 . "$source_dir/scripts/common/credentials.sh"
 # shellcheck disable=SC1090
@@ -28,11 +30,11 @@ install_asset() {
   install -m "$mode" "$source_path" "$target_path"
 }
 
-install_asset hooks/target/etc/apparmor.d/usr.local.libexec.codex etc/apparmor.d/usr.local.libexec.codex 0644
-install_asset hooks/target/etc/systemd/system/codex-app.service etc/systemd/system/codex-app.service 0644
-install_asset hooks/target/usr/local/libexec/codex usr/local/libexec/codex-app 0755
-install_asset hooks/target/etc/sysusers.d/90-codex.conf etc/sysusers.d/90-codex.conf 0644
-install_asset hooks/target/etc/tmpfiles.d/90-codex.conf etc/tmpfiles.d/90-codex.conf 0644
+install_asset "$DIR_HOOKS_TARGET/etc/apparmor.d/usr.local.libexec.codex" etc/apparmor.d/usr.local.libexec.codex 0644
+install_asset "$DIR_HOOKS_TARGET/etc/systemd/system/codex-app.service" etc/systemd/system/codex-app.service 0644
+install_asset "$DIR_HOOKS_TARGET/usr/local/libexec/codex" usr/local/libexec/codex-app 0755
+install_asset "$DIR_HOOKS_TARGET/etc/sysusers.d/90-codex.conf" etc/sysusers.d/90-codex.conf 0644
+install_asset "$DIR_HOOKS_TARGET/etc/tmpfiles.d/90-codex.conf" etc/tmpfiles.d/90-codex.conf 0644
 if [ -x "$target/usr/bin/systemd-sysusers" ]; then
   chroot "$target" /usr/bin/systemd-sysusers /etc/sysusers.d/90-codex.conf
 fi
@@ -56,7 +58,7 @@ tar -xzf "$archive" --no-same-owner --no-same-permissions -C "$target$SERVER_COD
 rm -f "$archive"
 codex_enabled=true
 
-server_render_template "$source_dir/hooks/target/etc/codex/server.env.tmpl" \
+server_render_template "$source_dir/$DIR_HOOKS_TARGET/etc/codex/server.env.tmpl" \
   "$target/etc/codex/server.env" 0640 CODEX_ENABLED "$codex_enabled" \
   CODEX_HOME "$SERVER_CODEX_STATE_DIR" \
   DEVOPS_CODEX_TOOLS_ENABLE "${DEVOPS_CODEX_TOOLS_ENABLE:-false}"

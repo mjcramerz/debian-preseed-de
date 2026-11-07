@@ -9,7 +9,10 @@ source_dir=${1:-/tmp/server-install}
 # shellcheck disable=SC1090
 . "$source_dir/scripts/common/credentials.sh"
 # shellcheck disable=SC1090
+. "$source_dir/scripts/common/forky.sh"
+# shellcheck disable=SC1090
 . "$source_dir/hosts/installer/identity.env"
+server_forky_identity_load "$source_dir"
 
 classes=${PRESEED_SERVER_CLASSES:-}
 if [ -r /proc/cmdline ]; then
@@ -17,6 +20,7 @@ if [ -r /proc/cmdline ]; then
     case "$argument" in classes=*) classes=${argument#classes=} ;; esac
   done
 fi
+classes=$(printf '%s\n' "$classes" | tr ';' ',')
 if [ -z "$classes" ]; then
   # shellcheck disable=SC1090
   . "$source_dir/repo.env"
@@ -71,6 +75,7 @@ class_fragment() {
 
 pkgsel=
 append_fragment_packages "$source_dir/fragments/apt.cfg"
+seen_fragments=
 
 old_ifs=$IFS
 IFS=,
@@ -80,7 +85,12 @@ IFS=$old_ifs
 for token in "$@"; do
   [ -n "$token" ] || continue
   case "$token" in *[!ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789_./:+-]*) server_fatal 'classes contains an invalid token'; exit 1 ;; esac
-  append_fragment_packages "$(class_fragment "$token")"
+  fragment=$(class_fragment "$token")
+  case " $seen_fragments " in
+    *" $fragment "*) server_fatal "duplicate class selection: $token"; exit 1 ;;
+    *) seen_fragments="${seen_fragments:+$seen_fragments }$fragment" ;;
+  esac
+  append_fragment_packages "$fragment"
 done
 
 architecture=$(dpkg --print-architecture 2>/dev/null || true)
@@ -116,5 +126,8 @@ printf 'd-i netcfg/get_ipaddress string %s\n' "$network_address" >>"$answers"
 printf 'd-i netcfg/get_netmask string %s\n' "$network_netmask" >>"$answers"
 printf 'd-i netcfg/get_gateway string %s\n' "$network_gateway" >>"$answers"
 printf 'd-i netcfg/get_nameservers string %s\n' "$network_nameservers" >>"$answers"
+printf 'd-i netcfg/get_hostname string %s\n' "$SYSTEM_HOSTNAME" >>"$answers"
+printf 'd-i netcfg/get_domain string %s\n' "$SYSTEM_DOMAIN" >>"$answers"
+printf 'd-i netcfg/hostname string %s\n' "$SYSTEM_HOSTNAME" >>"$answers"
 printf 'd-i netcfg/confirm_static boolean true\n' >>"$answers"
 debconf-set-selections "$answers"

@@ -1,7 +1,8 @@
 [Unit]
 Description=GitHub runner rootless Podman API
 Requires=ci-github-podman.socket
-After=ci-github-podman.socket systemd-tmpfiles-setup.service
+After=ci-github-podman.socket systemd-tmpfiles-setup.service network-policy.service nftables.service apparmor.service
+Requires=network-policy.service nftables.service apparmor.service
 RequiresMountsFor=/pool/build/runners/github /pool/cache/runners/github /pool/db/runners/github /pool/podman/users/github-runner /pool/podman/runners/github /run/ci-runners/github
 
 [Service]
@@ -16,8 +17,7 @@ Environment=TMPDIR=/pool/podman/runners/github/tmp
 Environment=CONTAINERS_CONF=/etc/system-config/ci-runners/podman/github/containers.conf
 Environment=CONTAINERS_STORAGE_CONF=/etc/system-config/ci-runners/podman/github/storage.conf
 Environment=REGISTRIES_CONFIG_PATH=/etc/system-config/ci-runners/podman/github/registries.conf
-EnvironmentFile=-/etc/system-config/ci-runners/podman/github/registry-tls.env
-ExecStart=/usr/bin/podman system service --time=0 unix:///run/ci-runners/github/podman.sock
+ExecStart=/usr/bin/podman system service --time=0
 Delegate=yes
 KillMode=control-group
 TimeoutStartSec=90s
@@ -39,6 +39,14 @@ IOWeight=100
 TasksMax=4096
 MemoryHigh=70%
 MemoryMax=85%
+AppArmorProfile=ci-github-podman
+ProtectProc=invisible
+ProcSubset=pid
+ProtectClock=yes
+DevicePolicy=closed
+CapabilityBoundingSet=
+StartLimitIntervalSec=10min
+StartLimitBurst=5
 
 [Install]
 WantedBy=multi-user.target

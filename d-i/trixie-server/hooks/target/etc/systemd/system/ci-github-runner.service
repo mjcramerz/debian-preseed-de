@@ -2,13 +2,18 @@
 Description=GitHub Actions self-hosted runner
 After=network-online.target
 Wants=network-online.target
-Requires=ci-github-podman.socket
-After=ci-github-podman.socket
+Requires=ci-github-podman.socket ci-github-register.service network-policy.service nftables.service apparmor.service
+After=ci-github-podman.socket ci-github-register.service network-policy.service nftables.service apparmor.service
+RequiresMountsFor=/pool/build/runners/github /pool/cache/runners/github /pool/db/runners/github /pool/podman/users/github-runner /var/lib/ci-runners/github
 ConditionPathExists=/etc/system-config/ci-runners/github.env
 ConditionPathExists=/usr/local/libexec/ci-runner
+ConditionPathExists=/var/lib/ci-runners/github/fingerprint
+StartLimitIntervalSec=10min
+StartLimitBurst=5
 
 [Service]
 Type=exec
+Slice=ci-github.slice
 User=github-runner
 Group=github-runner
 EnvironmentFile=/etc/system-config/ci-runners/github.env
@@ -25,6 +30,8 @@ RestartSec=10s
 TimeoutStartSec=120s
 TimeoutStopSec=30s
 KillMode=control-group
+ProtectProc=invisible
+ProcSubset=pid
 NoNewPrivileges=yes
 PrivateTmp=yes
 ProtectSystem=strict
@@ -33,6 +40,18 @@ ProtectKernelModules=yes
 ProtectKernelTunables=yes
 ProtectControlGroups=yes
 RestrictNamespaces=yes
+DevicePolicy=closed
+CapabilityBoundingSet=
+ProtectClock=yes
+RestrictRealtime=yes
+SystemCallArchitectures=native
+AppArmorProfile=ci-github-runner
+MemoryHigh=70%
+MemoryMax=85%
+TasksMax=4096
+CPUWeight=100
+IOWeight=100
+LimitNOFILE=65536
 RestrictSUIDSGID=yes
 LockPersonality=yes
 MemoryDenyWriteExecute=yes
@@ -41,6 +60,7 @@ ReadWritePaths=/pool/cache/runners/github
 ReadWritePaths=/pool/build/runners/github
 ReadWritePaths=/pool/podman/users/github-runner
 ReadWritePaths=/pool/db/runners/github
+InaccessiblePaths=/preseed.env /target /boot /root /etc/systemd/system /run/dbus /run/systemd/private
 UMask=0077
 
 [Install]

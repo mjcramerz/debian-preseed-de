@@ -1,0 +1,28 @@
+#include <tunables/global>
+
+profile ci-gitlab-podman /usr/bin/podman {
+  #include <abstractions/base>
+  /usr/bin/podman rix,
+  /usr/bin/conmon rix,
+  /usr/bin/crun rix,
+  /usr/bin/slirp4netns rix,
+  /usr/bin/netavark rix,
+  /usr/bin/aardvark-dns rix,
+  /etc/system-config/ci-runners/podman/gitlab/** r,
+  /pool/podman/runners/gitlab/** rwk,
+  /pool/podman/users/gitlab-runner/** rwk,
+  /pool/build/runners/gitlab/** rwk,
+  /pool/cache/runners/gitlab/** rwk,
+  /run/ci-runners/gitlab/** rw,
+  network inet stream,
+  network inet dgram,
+  network inet6 stream,
+  network inet6 dgram,
+  deny /preseed.env r,
+  deny /target/** rwx,
+  deny /pool/podman/runners/github/** rwx,
+  deny /pool/podman/users/github-runner/** rwx,
+  deny /pool/build/runners/github/** rwx,
+  deny /pool/cache/runners/github/** rwx,
+  deny /run/systemd/private rw,
+}

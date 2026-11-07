@@ -1,2 +1,4 @@
-# GitHub runner class: retain explicit identity policy for future default-drop output.
-add rule inet policy output meta skuid github-runner accept
+# GitHub runner egress: DNS and HTTPS only under the default-drop output policy.
+add rule inet policy output meta skuid github-runner udp dport 53 accept
+add rule inet policy output meta skuid github-runner tcp dport 53 accept
+add rule inet policy output meta skuid github-runner tcp dport 443 accept

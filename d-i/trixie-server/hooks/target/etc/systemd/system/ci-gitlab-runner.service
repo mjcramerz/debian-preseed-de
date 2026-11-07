@@ -2,13 +2,18 @@
 Description=GitLab Runner
 After=network-online.target
 Wants=network-online.target
-Requires=ci-gitlab-podman.socket
-After=ci-gitlab-podman.socket
+Requires=ci-gitlab-podman.socket ci-gitlab-register.service network-policy.service nftables.service apparmor.service
+After=ci-gitlab-podman.socket ci-gitlab-register.service network-policy.service nftables.service apparmor.service
+RequiresMountsFor=/pool/build/runners/gitlab /pool/cache/runners/gitlab /pool/db/runners/gitlab /pool/podman/users/gitlab-runner /var/lib/ci-runners/gitlab
 ConditionPathExists=/etc/system-config/ci-runners/gitlab.env
 ConditionPathExists=/usr/local/libexec/ci-runner
+ConditionPathExists=/var/lib/ci-runners/gitlab/fingerprint
+StartLimitIntervalSec=10min
+StartLimitBurst=5
 
 [Service]
 Type=exec
+Slice=ci-gitlab.slice
 User=gitlab-runner
 Group=gitlab-runner
 EnvironmentFile=/etc/system-config/ci-runners/gitlab.env
@@ -26,6 +31,8 @@ RestartSec=10s
 TimeoutStartSec=120s
 TimeoutStopSec=30s
 KillMode=control-group
+ProtectProc=invisible
+ProcSubset=pid
 NoNewPrivileges=yes
 PrivateTmp=yes
 ProtectSystem=strict
@@ -34,6 +41,18 @@ ProtectKernelModules=yes
 ProtectKernelTunables=yes
 ProtectControlGroups=yes
 RestrictNamespaces=yes
+DevicePolicy=closed
+CapabilityBoundingSet=
+ProtectClock=yes
+RestrictRealtime=yes
+SystemCallArchitectures=native
+AppArmorProfile=ci-gitlab-runner
+MemoryHigh=70%
+MemoryMax=85%
+TasksMax=4096
+CPUWeight=100
+IOWeight=100
+LimitNOFILE=65536
 RestrictSUIDSGID=yes
 LockPersonality=yes
 MemoryDenyWriteExecute=yes
@@ -42,6 +61,7 @@ ReadWritePaths=/pool/cache/runners/gitlab
 ReadWritePaths=/pool/build/runners/gitlab
 ReadWritePaths=/pool/podman/users/gitlab-runner
 ReadWritePaths=/pool/db/runners/gitlab
+InaccessiblePaths=/preseed.env /target /boot /root /etc/systemd/system /run/dbus /run/systemd/private
 UMask=0077
 
 [Install]

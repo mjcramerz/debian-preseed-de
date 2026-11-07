@@ -1,0 +1,40 @@
+[Unit]
+Description=Register the GitLab Runner once
+After=network-online.target systemd-tmpfiles-setup.service apparmor.service nftables.service
+Wants=network-online.target
+Before=ci-gitlab-runner.service
+RequiresMountsFor=/pool/build/runners/gitlab /pool/cache/runners/gitlab /pool/db/runners/gitlab /pool/podman/users/gitlab-runner /var/lib/ci-runners/gitlab
+ConditionPathExists=/etc/system-config/ci-runners/.gitlab.registration
+ConditionPathExists=/usr/local/libexec/ci-register
+
+[Service]
+Type=oneshot
+User=root
+Group=root
+ExecStart=/usr/local/libexec/ci-register gitlab
+LoadCredential=registration:/etc/system-config/ci-runners/.gitlab.registration
+ProtectProc=invisible
+ProcSubset=pid
+NoNewPrivileges=yes
+PrivateTmp=yes
+ProtectSystem=strict
+ProtectHome=yes
+ProtectKernelModules=yes
+ProtectKernelTunables=yes
+ProtectControlGroups=yes
+ProtectClock=yes
+RestrictSUIDSGID=yes
+RestrictRealtime=yes
+LockPersonality=yes
+DevicePolicy=closed
+CapabilityBoundingSet=
+RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6
+ReadWritePaths=/pool/build/runners/gitlab /pool/cache/runners/gitlab /pool/db/runners/gitlab /pool/podman/users/gitlab-runner /var/lib/ci-runners/gitlab /etc/system-config/ci-runners /run/lock/ci-runners
+ReadWritePaths=/run/ci-runners/gitlab-registration
+UMask=0077
+TimeoutStartSec=180s
+TimeoutStopSec=30s
+KillMode=control-group
+
+[Install]
+WantedBy=multi-user.target

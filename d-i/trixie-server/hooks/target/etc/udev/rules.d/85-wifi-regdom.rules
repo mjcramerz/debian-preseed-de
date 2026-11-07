@@ -1,0 +1,3 @@
+# Reapply the deployed Swedish regulatory hint when a wireless PHY appears.
+# iw is supplied by classes/class-auto/cpu/intel.cfg.
+ACTION=="add", SUBSYSTEM=="ieee80211", RUN+="/usr/sbin/iw reg set SE"

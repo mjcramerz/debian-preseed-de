@@ -1,0 +1,32 @@
+#include <tunables/global>
+
+profile ci-gitlab-runner /usr/local/libexec/ci-runner {
+  #include <abstractions/base>
+  #include <abstractions/bash>
+  /usr/local/libexec/ci-runner rix,
+  /usr/local/libexec/ci-gitlab-runner rix,
+  /usr/bin/git rix,
+  /usr/bin/curl rix,
+  /etc/ssl/certs/** r,
+  /etc/system-config/ci-runners/gitlab.env r,
+  /etc/system-config/ci-runners/gitlab/** r,
+  /pool/build/runners/gitlab/** rwk,
+  /pool/cache/runners/gitlab/** rwk,
+  /pool/db/runners/gitlab/** rwk,
+  /pool/podman/users/gitlab-runner/** rwk,
+  /run/ci-runners/gitlab/** rw,
+  /var/lib/ci-runners/gitlab/** rw,
+  network inet stream,
+  network inet dgram,
+  network inet6 stream,
+  network inet6 dgram,
+  deny /preseed.env r,
+  deny /target/** rwx,
+  deny /root/** rwx,
+  deny /pool/build/runners/github/** rwx,
+  deny /pool/cache/runners/github/** rwx,
+  deny /pool/db/runners/github/** rwx,
+  deny /pool/podman/users/github-runner/** rwx,
+  deny /run/systemd/private rw,
+  deny /run/dbus/** rw,
+}

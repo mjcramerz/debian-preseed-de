@@ -7,7 +7,9 @@ target=${2:-/target}
 mode=${3:-}
 profile=${4:-btrfs-srv-flex}
 [ -d "$source_dir" ] && [ -d "$target" ] || { printf '%s\n' 'fatal: NFS stage paths are unavailable' >&2; exit 1; }
-case "$mode" in client|server|both) ;; '') exit 0 ;; *) printf '%s\n' 'fatal: NFS mode must be client, server, or both' >&2; exit 1 ;; esac
+. "$source_dir/repo.env"
+. "$source_dir/$DIR_HOSTS_INSTALLER/runtime.env"
+case "$mode" in client|server|both|policy) ;; '') exit 0 ;; *) printf '%s\n' 'fatal: NFS mode must be client, server, both, or policy' >&2; exit 1 ;; esac
 case "$profile" in
   btrfs-srv-flex|btrfs-srv-flex-duo|f2fs-srv-hp14) ;;
   *) printf '%s\n' 'fatal: unknown server profile for NFS policy' >&2; exit 1 ;;
@@ -25,9 +27,13 @@ esac
 # shellcheck disable=SC1090
 . "$source_dir/hosts/installer/identity.env"
 
-interface=$(server_answer_value netcfg/choose_interface choose_interface interface) || {
-  server_fatal 'static installer interface is required for NFS policy'; exit 1;
-}
+if [ "$mode" = policy ]; then
+  interface=${NFS_INTERFACES%% *}
+else
+  interface=$(server_answer_value netcfg/choose_interface choose_interface interface) || {
+    server_fatal 'static installer interface is required for NFS policy'; exit 1;
+  }
+fi
 case "$interface" in
   ''|*[!ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789_.-]*|????????????????*)
     server_fatal 'NFS interface is invalid'; exit 1 ;;
@@ -38,6 +44,7 @@ client_enable=${NFS_CLIENT_ENABLE:-false}
 case "$mode" in
   server) client_enable=false ;;
   client) server_enable=false ;;
+  policy) server_enable=false; client_enable=false ;;
 esac
 client_read_only=${NFS_CLIENT_READ_ONLY:-false}
 account_user=$(server_credential_read primary_user) || { server_fatal 'primary account is required for NFS policy'; exit 1; }
@@ -57,7 +64,7 @@ fetch_asset() {
   relative=$1
   destination="$stage/assets/$relative"
   install -d -m 0700 "${destination%/*}"
-  server_forky_fetch "$forky_base" "hooks/target/$relative" "$destination" 0600
+  server_forky_fetch "$forky_base" "$FORKY_HOOKS_TARGET/$relative" "$destination" 0600
 }
 
 fetch_asset etc/exports.tmpl
@@ -74,7 +81,7 @@ fetch_asset usr/local/libexec/network-sharing-report
 
 if [ -x "$target/usr/bin/chroot" ] && [ -x "$target/usr/bin/python3" ]; then
   if [ "$server_enable" = true ]; then
-    server_render_template "$source_dir/hooks/target/etc/nftables.d/91-nfs.tmpl" \
+    server_render_template "$source_dir/$DIR_HOOKS_TARGET/etc/nftables.d/91-nfs.tmpl" \
       "$target/etc/nftables.d/91-nfs.nft" 0644 \
       NFS_SERVER_PORT "$NFS_SERVER_PORT" NFS_SERVER_EXPORT_CIDR "$NFS_SERVER_EXPORT_CIDR"
   fi

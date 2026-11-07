@@ -1,0 +1,8 @@
+[Unit]
+Description=GitHub CI resource slice
+
+[Slice]
+CPUAccounting=yes
+MemoryAccounting=yes
+TasksAccounting=yes
+

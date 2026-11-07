@@ -12,6 +12,44 @@ server_forky_source_base() {
   printf '%s\n' "$source_dir/forky"
 }
 
+server_forky_identity_load() {
+  source_dir=${1:-}
+  [ -d "$source_dir" ] && [ ! -L "$source_dir" ] || {
+    printf '%s\n' 'fatal: Trixie source directory is unavailable for identity generation' >&2
+    return 1
+  }
+  identity_state="$source_dir/server-identity.env"
+  if [ -e "$identity_state" ] && { [ ! -f "$identity_state" ] || [ -L "$identity_state" ]; }; then
+    printf '%s\n' 'fatal: generated server identity state is not a regular file' >&2
+    return 1
+  fi
+  . "$source_dir/hosts/installer/identity.env"
+  fork_base=$(server_forky_source_base "$source_dir") || return 1
+
+  # Forky owns hostname validation and generation. Trixie only adapts the
+  # installer error boundary and persists the generated identity for later
+  # preseed and late stages.
+  installer_fatal() { server_fatal "$*"; exit 1; }
+  preseed_env_read_value() { return 1; }
+  . "$fork_base/scripts/runtime/modules/base.sh"
+  . "$fork_base/scripts/runtime/modules/identity.sh"
+  if [ -r "$identity_state" ]; then
+    . "$identity_state"
+  fi
+  runtime_ensure_system_identity
+
+  if [ ! -r "$identity_state" ]; then
+    identity_temporary=$(mktemp "$source_dir/.server-identity.XXXXXX")
+    trap 'rm -f "$identity_temporary"' EXIT HUP INT TERM
+    printf 'SYSTEM_PREFIX=%s\nSYSTEM_DOMAIN=%s\nSYSTEM_HOSTNAME=%s\n' \
+      "$SYSTEM_PREFIX" "$SYSTEM_DOMAIN" "$SYSTEM_HOSTNAME" >"$identity_temporary"
+    chmod 0600 "$identity_temporary"
+    mv -f "$identity_temporary" "$identity_state"
+    trap - EXIT HUP INT TERM
+  fi
+  export SYSTEM_PREFIX SYSTEM_DOMAIN SYSTEM_HOSTNAME
+}
+
 server_forky_fetch() {
   fork_base=$1
   relative=$2

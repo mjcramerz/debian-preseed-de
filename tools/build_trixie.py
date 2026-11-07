@@ -4,12 +4,14 @@
 The builder is a pure serializer. It reads the Trixie source tree and the
 explicit read-only Forky bridge list, then publishes only the three Trixie
 products: ``payload.tar.gz``, ``payload.manifest`` and ``preseed.cfg``.
-The manifest records byte sizes and paths; no bridge integrity verification is
-introduced into the Trixie installer.
+The manifest is versioned and records byte sizes, SHA-256 digests, and paths.
+The explicit Forky bridge is read-only input and is authenticated by the same
+manifest after it is embedded in the publication.
 """
 from __future__ import annotations
 
 import gzip
+import hashlib
 import io
 from pathlib import Path
 import re
@@ -22,7 +24,13 @@ FORKY = ROOT / 'd-i/forky'
 GENERATED = frozenset({'preseed.cfg', 'payload.manifest', 'payload.tar.gz'})
 SOURCE_ONLY = frozenset({'preseed.cfg.tmpl', 'forky-payload.list'})
 EXCLUDED_DIRS = frozenset({'.git', '__pycache__', '.pytest_cache', 'tests'})
-PRIVATE_INPUT_NAMES = frozenset({'preseed.env', 'git_ed25519', 'git_ed25519.pub', 'id_git_ed25519'})
+PRIVATE_INPUT_NAMES = frozenset({
+    'preseed.env', 'git_ed25519', 'git_ed25519.pub', 'id_git_ed25519',
+    'id_rsa', 'id_ecdsa', 'id_ed25519', 'credentials', 'credentials.env',
+    'runner.token', 'registration.token', 'tls-passphrase',
+})
+PRIVATE_INPUT_SUFFIXES = frozenset({'.pem', '.key', '.p12', '.pfx', '.gpg', '.asc'})
+PRIVATE_INPUT_WORDS = ('credential', 'secret', 'password', 'passphrase', 'private-key')
 PRIVATE_KEY_HEADER = re.compile(rb'-----BEGIN (?:OPENSSH |RSA |EC |DSA |ENCRYPTED )?PRIVATE KEY-----')
 SAFE_PATH = re.compile(r'[A-Za-z0-9_./@+\-]+\Z')
 
@@ -46,17 +54,34 @@ def _read_regular(path: Path, display: str) -> bytes:
     return data
 
 
+def _is_private_input(relative: Path, data: bytes | None = None) -> bool:
+    """Return whether a source path is forbidden private material."""
+    name = relative.name.lower()
+    if name in PRIVATE_INPUT_NAMES or name.endswith(tuple(PRIVATE_INPUT_SUFFIXES)):
+        return True
+    if (not name.endswith(('.sh', '.py', '.cfg', '.tmpl'))
+            and any(word in name for word in PRIVATE_INPUT_WORDS)):
+        return True
+    return data is not None and PRIVATE_KEY_HEADER.match(data[:256].lstrip()) is not None
+
+
 def _trixie_sources() -> dict[str, bytes]:
     contents: dict[str, bytes] = {}
     for path in sorted(SEED.rglob('*')):
         relative = path.relative_to(SEED)
+        if path.is_file() or path.is_symlink():
+            if _is_private_input(relative):
+                raise ValueError(f'private input cannot be packaged: {relative.as_posix()}')
         if any(part in EXCLUDED_DIRS for part in relative.parts):
             continue
         name = relative.as_posix()
         if name in GENERATED or name in SOURCE_ONLY or path.is_dir():
             continue
         _safe_path(name)
-        contents[name] = _read_regular(path, name)
+        data = _read_regular(path, name)
+        if _is_private_input(relative, data):
+            raise ValueError(f'private input cannot be packaged: {name}')
+        contents[name] = data
     return contents
 
 
@@ -64,10 +89,14 @@ def _forky_sources() -> dict[str, bytes]:
     listing = SEED / 'forky-payload.list'
     lines = listing.read_text(encoding='utf-8').splitlines()
     contents: dict[str, bytes] = {}
+    listed: set[str] = set()
     for line_number, line in enumerate(lines, 1):
         relative = line.strip()
         if not relative or relative.startswith('#'):
             continue
+        if relative in listed:
+            raise ValueError(f'duplicate Forky bridge path at line {line_number}: {relative}')
+        listed.add(relative)
         _safe_path(relative)
         source = FORKY / relative
         destination = f'forky/{relative}'
@@ -89,9 +118,15 @@ def payload_contents() -> dict[str, bytes]:
     return dict(sorted(contents.items()))
 
 
-def manifest(contents: dict[str, bytes]) -> bytes:
-    lines = ['format=1', 'format_description=size<TAB>path']
-    lines.extend(f'{len(data)}\t{name}' for name, data in contents.items())
+def manifest(contents: dict[str, bytes], archive_digest: str) -> bytes:
+    if not re.fullmatch(r'[0-9a-f]{64}', archive_digest):
+        raise ValueError('payload archive digest is malformed')
+    lines = [f'format=2', f'archive_sha256={archive_digest}',
+             'format_description=size<TAB>sha256<TAB>path']
+    lines.extend(
+        f'{len(data)}\t{hashlib.sha256(data).hexdigest()}\t{name}'
+        for name, data in contents.items()
+    )
     return ('\n'.join(lines) + '\n').encode('utf-8')
 
 
@@ -115,9 +150,18 @@ def build() -> dict[str, bytes]:
     preseed = _read_regular(preseed_template, 'preseed.cfg.tmpl')
     if b'\x00' in preseed:
         raise ValueError('preseed template contains a NUL byte')
+    helper = contents.get('scripts/common/source.sh')
+    if helper is None:
+        raise ValueError('Trixie payload lacks the source helper')
+    preseed = preseed.replace(
+        b'@SOURCE_HELPER_SHA256@', hashlib.sha256(helper).hexdigest().encode('ascii')
+    )
+    if b'@SOURCE_HELPER_SHA256@' in preseed:
+        raise ValueError('preseed template contains an unresolved source-helper digest')
+    archive_bytes = archive(contents)
     return {
-        'payload.tar.gz': archive(contents),
-        'payload.manifest': manifest(contents),
+        'payload.tar.gz': archive_bytes,
+        'payload.manifest': manifest(contents, hashlib.sha256(archive_bytes).hexdigest()),
         'preseed.cfg': preseed,
     }
 

@@ -7,6 +7,10 @@ target=${2:-/target}
 wifi_class=${3:-}
 profile=${4:-btrfs-srv-flex}
 [ -d "$source_dir" ] && [ -d "$target" ] || { printf '%s\n' 'fatal: network stage paths are unavailable' >&2; exit 1; }
+. "$source_dir/repo.env"
+. "$source_dir/$DIR_HOSTS_INSTALLER/runtime.env"
+# shellcheck disable=SC1090
+. "$source_dir/$DIR_SCRIPTS_COMMON/forky.sh"
 # shellcheck disable=SC1090
 . "$source_dir/scripts/common/credentials.sh"
 # shellcheck disable=SC1090
@@ -17,6 +21,7 @@ profile=${4:-btrfs-srv-flex}
 . "$source_dir/hosts/installer/identity.env"
 # shellcheck disable=SC1090
 . "$source_dir/hosts/profiles/$profile.env"
+server_forky_identity_load "$source_dir"
 
 interface=$(server_answer_value netcfg/choose_interface choose_interface interface) || { server_fatal 'static installer interface is required from the kernel command line or debconf'; exit 1; }
 address=$(server_answer_value netcfg/get_ipaddress ip) || { server_fatal 'static installer IP is required from the kernel command line or debconf'; exit 1; }
@@ -32,7 +37,7 @@ case "$address:$gateway" in *[!0-9.]*) server_fatal 'static network addresses co
 case "$nameservers" in *[!0-9.,]*) server_fatal 'static nameservers contain unsupported characters'; exit 1 ;; esac
 
 install -d -m 0755 "$target/etc/network/interfaces.d" "$target/etc/system-config"
-server_render_template "$source_dir/hooks/target/etc/network/interfaces.d/90-policy.tmpl" \
+server_render_template "$source_dir/$DIR_HOOKS_TARGET/etc/network/interfaces.d/90-policy.tmpl" \
   "$target/etc/network/interfaces.d/90-policy" 0644 \
   NETWORK_INTERFACE "$interface" NETWORK_CIDR "$cidr" NETWORK_GATEWAY "$gateway" \
   NETWORK_NAMESERVERS "$nameservers"
@@ -56,18 +61,18 @@ if [ "$wifi_class" = wifi ]; then
     wpa-psk) wifi_template=managed-wifi-wpa-psk.nmconnection.tmpl ;;
     wpa3-sae) wifi_template=managed-wifi-wpa3-sae.nmconnection.tmpl ;;
   esac
-  server_render_template "$source_dir/hooks/target/etc/NetworkManager/system-connections/$wifi_template" \
+  server_render_template "$source_dir/$DIR_HOOKS_TARGET/etc/NetworkManager/system-connections/$wifi_template" \
     "$target/etc/NetworkManager/system-connections/managed-wifi.nmconnection" 0600 \
     WIFI_INTERFACE "$wifi_interface" WIFI_ESSID "$wifi_essid" WIFI_CIDR "$wifi_cidr" \
     WIFI_PASSPHRASE "$wifi_passphrase"
 fi
 
-server_render_template "$source_dir/hooks/target/etc/system-config/network.env.tmpl" \
+server_render_template "$source_dir/$DIR_HOOKS_TARGET/etc/system-config/network.env.tmpl" \
   "$target/etc/system-config/network.env" 0640 \
   NETWORK_INTERFACE "$interface" NETWORK_CIDR "$cidr" NETWORK_GATEWAY "$gateway" \
   NETWORK_NAMESERVERS "$nameservers" IPV6_POLICY "${SERVER_IPV6_POLICY:-enabled}" \
-  PROFILE "$profile" FILESYSTEM "${SERVER_FILESYSTEM:-btrfs}" \
-  HOSTNAME "${SERVER_HOSTNAME:-srv}" DOMAIN "${SYSTEM_DOMAIN:-${SERVER_DOMAIN:-lan.icramer.com}}" \
+  PROFILE "$profile" FILESYSTEM "${PARTMAN_RECIPE_NAME%%-*}" \
+  HOSTNAME "$SYSTEM_HOSTNAME" DOMAIN "${SYSTEM_DOMAIN:-${SERVER_DOMAIN:-lan.icramer.com}}" \
   TIMEZONE "${SERVER_TIMEZONE:-Europe/Stockholm}" SSH_PORT "$SERVER_SSH_PORT" \
   SSH_CIDR_ALLOW "${SERVER_SSH_CIDR_ALLOW:-192.168.50.0/24}" \
   SSH_USER "$SSH_SERVER_USER_ALLOW"

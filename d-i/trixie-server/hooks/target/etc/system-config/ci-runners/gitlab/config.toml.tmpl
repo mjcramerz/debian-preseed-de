@@ -5,7 +5,6 @@ shutdown_timeout = 0
 [[runners]]
   name = "@RUNNER_NAME@"
   url = "@RUNNER_URL@"
-  token = "@RUNNER_TOKEN@"
   executor = "@RUNNER_EXECUTOR@"
   builds_dir = "@RUNNER_BUILDS_DIR@"
   cache_dir = "@RUNNER_CACHE_DIR@"
@@ -76,9 +75,5 @@ shutdown_timeout = 0
     volumes = [
       "@RUNNER_BUILDS_DIR@:/builds",
       "@RUNNER_CACHE_DIR@:/cache",
-      "@RUNNER_BUILD_ROOT@:@RUNNER_BUILD_ROOT@",
-      "@RUNNER_CACHE_ROOT@:@RUNNER_CACHE_ROOT@",
-      "@RUNNER_DB_ROOT@:@RUNNER_DB_ROOT@",
-      "@RUNNER_HOME@:@RUNNER_HOME@",
       "/etc/system-config/ci-runners/gitlab.bazelrc:/etc/system-config/ci-runners/gitlab.bazelrc:ro"
     ]

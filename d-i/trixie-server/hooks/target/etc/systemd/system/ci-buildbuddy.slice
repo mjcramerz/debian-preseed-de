@@ -1,0 +1,8 @@
+[Unit]
+Description=BuildBuddy resource slice
+
+[Slice]
+CPUAccounting=yes
+MemoryAccounting=yes
+TasksAccounting=yes
+

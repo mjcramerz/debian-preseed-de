@@ -14,12 +14,17 @@ server_credential_variable() {
     shim_signed_passphrase) printf '%s\n' PRESEED_SHIM_SIGNED_PASSPHRASE ;;
     github_runner_token) printf '%s\n' PRESEED_GITHUB_RUNNER_TOKEN ;;
     gitlab_runner_token) printf '%s\n' PRESEED_GITLAB_RUNNER_TOKEN ;;
+    filen_priv_email) printf '%s\n' PRESEED_FILEN_PRIV_EMAIL ;;
+    filen_priv_password) printf '%s\n' PRESEED_FILEN_PRIV_PASSWORD ;;
+    filen_priv_2fa_seed) printf '%s\n' PRESEED_FILEN_PRIV_2FA_SEED ;;
+    filen_offsec_email) printf '%s\n' PRESEED_FILEN_OFFSEC_EMAIL ;;
+    filen_offsec_password) printf '%s\n' PRESEED_FILEN_OFFSEC_PASSWORD ;;
+    filen_offsec_2fa_seed) printf '%s\n' PRESEED_FILEN_OFFSEC_2FA_SEED ;;
     wifi_interface) printf '%s\n' PRESEED_WIFI_INTERFACE ;;
     wifi_essid) printf '%s\n' PRESEED_WIFI_ESSID ;;
     wifi_security) printf '%s\n' PRESEED_WIFI_SECURITY ;;
     wifi_cidr) printf '%s\n' PRESEED_WIFI_CIDR ;;
     wifi_passphrase) printf '%s\n' PRESEED_WIFI_PASSPHRASE ;;
-    podman_tls_passphrase) printf '%s\n' PRESEED_PODMAN_TLS_PASSPHRASE ;;
     *) return 1 ;;
   esac
 }
@@ -149,17 +154,37 @@ server_credential_check_file() (
   [ -f "$credential_file" ] && [ ! -L "$credential_file" ] || {
     server_credential_error 'credential file must be a regular non-symlink'; exit 2;
   }
-  metadata=$(LC_ALL=C ls -ldn "$credential_file" 2>/dev/null) || {
+  metadata=$(stat -c '%F|%u|%h|%a' "$credential_file" 2>/dev/null) || {
     server_credential_error 'credential metadata is unavailable'; exit 2;
   }
-  set -- $metadata
-  [ "$#" -ge 4 ] && [ "$2" = 1 ] && [ "$3" = "$(id -u)" ] || {
-    server_credential_error 'credential file must be owned by the installer and have one hard link'; exit 2;
+  old_ifs=$IFS; IFS='|'; read -r file_type file_owner file_links file_mode <<EOF_METADATA
+$metadata
+EOF_METADATA
+  IFS=$old_ifs
+  [ "$file_type" = 'regular file' ] && [ "$file_owner" = 0 ] && [ "$file_links" = 1 ] || {
+    server_credential_error 'credential file must be a root-owned regular file with one hard link'; exit 2;
   }
-  case "$1" in
-    -r--------|-rw-------|-r--r-----|-rw-r-----) ;;
-    *) server_credential_error 'credential file permissions are too broad'; exit 2 ;;
-  esac
+  case "$file_mode" in 400|440|600|640) ;; *) server_credential_error 'credential file permissions are too broad'; exit 2 ;; esac
+  parent=${credential_file%/*}
+  [ -n "$parent" ] || parent=/
+  while [ "$parent" != / ]; do
+    parent_metadata=$(stat -c '%F|%u|%a' "$parent" 2>/dev/null) || {
+      server_credential_error 'credential parent metadata is unavailable'; exit 2;
+    }
+    old_ifs=$IFS; IFS='|'; read -r parent_type parent_owner parent_mode <<EOF_PARENT
+$parent_metadata
+EOF_PARENT
+    IFS=$old_ifs
+    [ "$parent_type" = directory ] && [ "$parent_owner" = 0 ] || {
+      server_credential_error 'credential parents must be root-owned directories'; exit 2;
+    }
+    case "$parent_mode" in *[2367][0-9][0-9]|*[0-9][2367][0-9]|*[0-9][0-9][2367])
+      server_credential_error 'credential parent is writable by an untrusted class'; exit 2 ;;
+    esac
+    next=${parent%/*}
+    [ "$next" = "$parent" ] && next=/
+    parent=$next
+  done
 )
 
 server_credential_read() (
@@ -167,8 +192,9 @@ server_credential_read() (
   set +v
   set -f
   umask 077
-  name=$(server_credential_variable "${1:-}") || exit 1
-  file=${INSTALLER_PRESEED_ENV_FILE:-/preseed.env}
+  identifier=${1:-}
+  name=$(server_credential_variable "$identifier") || exit 1
+  file=/preseed.env
   server_credential_check_file "$file" || exit $?
   temp=$(mktemp /tmp/server-install-env.XXXXXX) || {
     server_credential_error 'cannot create private credential staging'; exit 2;
@@ -183,17 +209,40 @@ server_credential_read() (
   unset PRESEED_PRIMARY_USERNAME PRESEED_PRIMARY_FULLNAME PRESEED_PRIMARY_PASSWORD PRESEED_ROOT_PASSWORD
   unset PRESEED_CROWDSEC_TOKEN PRESEED_SHIM_SIGNED_PASSPHRASE
   unset PRESEED_GITHUB_RUNNER_TOKEN PRESEED_GITLAB_RUNNER_TOKEN
+  unset PRESEED_FILEN_PRIV_EMAIL PRESEED_FILEN_PRIV_PASSWORD PRESEED_FILEN_PRIV_2FA_SEED
+  unset PRESEED_FILEN_OFFSEC_EMAIL PRESEED_FILEN_OFFSEC_PASSWORD PRESEED_FILEN_OFFSEC_2FA_SEED
   unset PRESEED_WIFI_INTERFACE PRESEED_WIFI_ESSID PRESEED_WIFI_SECURITY PRESEED_WIFI_CIDR PRESEED_WIFI_PASSPHRASE
-  unset PRESEED_PODMAN_TLS_PASSPHRASE
   . "$temp" >/dev/null 2>&1 || {
     server_credential_error 'credential assignments could not be loaded'; exit 2;
   }
-  # The identifier is selected from a fixed mapping above; the value remains
-  # quoted data even when it contains shell metacharacters.
-  eval "value=\${${name}:-}"
+  # Select the value from a fixed mapping. No caller-controlled shell variable
+  # name is ever evaluated.
+  case "$identifier" in
+    primary_user) value=${PRESEED_PRIMARY_USERNAME:-} ;;
+    primary_fullname) value=${PRESEED_PRIMARY_FULLNAME:-} ;;
+    primary_password) value=${PRESEED_PRIMARY_PASSWORD:-} ;;
+    root_password) value=${PRESEED_ROOT_PASSWORD:-} ;;
+    crowdsec_token) value=${PRESEED_CROWDSEC_TOKEN:-} ;;
+    shim_signed_passphrase) value=${PRESEED_SHIM_SIGNED_PASSPHRASE:-} ;;
+    github_runner_token) value=${PRESEED_GITHUB_RUNNER_TOKEN:-} ;;
+    gitlab_runner_token) value=${PRESEED_GITLAB_RUNNER_TOKEN:-} ;;
+    filen_priv_email) value=${PRESEED_FILEN_PRIV_EMAIL:-} ;;
+    filen_priv_password) value=${PRESEED_FILEN_PRIV_PASSWORD:-} ;;
+    filen_priv_2fa_seed) value=${PRESEED_FILEN_PRIV_2FA_SEED:-} ;;
+    filen_offsec_email) value=${PRESEED_FILEN_OFFSEC_EMAIL:-} ;;
+    filen_offsec_password) value=${PRESEED_FILEN_OFFSEC_PASSWORD:-} ;;
+    filen_offsec_2fa_seed) value=${PRESEED_FILEN_OFFSEC_2FA_SEED:-} ;;
+    wifi_interface) value=${PRESEED_WIFI_INTERFACE:-} ;;
+    wifi_essid) value=${PRESEED_WIFI_ESSID:-} ;;
+    wifi_security) value=${PRESEED_WIFI_SECURITY:-} ;;
+    wifi_cidr) value=${PRESEED_WIFI_CIDR:-} ;;
+    wifi_passphrase) value=${PRESEED_WIFI_PASSPHRASE:-} ;;
+    *) exit 2 ;;
+  esac
   [ -n "${value:-}" ] || exit 1
   case "$value" in
     *[![:print:]]*) server_credential_error 'credential values must be printable single-line data'; exit 2 ;;
   esac
+  [ "${#value}" -le 4096 ] || { server_credential_error 'credential value exceeds its length limit'; exit 2; }
   printf '%s\n' "$value"
 )

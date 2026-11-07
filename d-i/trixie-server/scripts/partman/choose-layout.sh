@@ -3,6 +3,8 @@ set -eu
 umask 077
 
 source_dir=${SERVER_SOURCE_DIR:-/tmp/server-install}
+. "$source_dir/repo.env"
+. "$source_dir/$DIR_HOSTS_INSTALLER/runtime.env"
 credentials="$source_dir/scripts/common/credentials.sh"
 recipes="$source_dir/scripts/runtime/modules/recipes.sh"
 [ -r "$credentials" ] || { printf '%s\n' 'fatal: server credential reader is unavailable' >&2; exit 1; }
@@ -29,6 +31,11 @@ case "$profile" in
 esac
 # shellcheck disable=SC1090
 . "$source_dir/hosts/profiles/$profile.env"
+. "$source_dir/hosts/installer/layout.env"
+case "$profile" in
+  f2fs-srv-hp14) . "$source_dir/hosts/installer/f2fs.env" ;;
+  *) . "$source_dir/hosts/installer/btrfs.env" ;;
+esac
 recipe=${PARTMAN_RECIPE_NAME:-}
 case "$recipe" in
   btrfs-layout-server) template=btrfs-01.recipe.tmpl ;;

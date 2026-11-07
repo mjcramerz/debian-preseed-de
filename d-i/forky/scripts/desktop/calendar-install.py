@@ -90,13 +90,13 @@ def release_pin(prefix: str) -> dict[str, str]:
     return values
 
 
-def download(url: str, digest: str, maximum: int, allowed_host: str) -> bytes:
+def download(url: str, digest: str, maximum: int) -> bytes:
     # Retry only release acquisition, before publishing files or credentials.
     # Each socket operation has a stall timeout; active streams have no total
     # elapsed-time cap. Restart from the pinned URL to renew signed redirects.
     for attempt in range(4):
         try:
-            return download_attempt(url, digest, maximum, allowed_host)
+            return download_attempt(url, digest, maximum)
         except (OSError, http.client.HTTPException, DownloadUnavailable):
             if attempt == 3:
                 raise Error('calendar release transport failed after retries') from None
@@ -104,11 +104,11 @@ def download(url: str, digest: str, maximum: int, allowed_host: str) -> bytes:
     raise Error('calendar release transport failed after retries')
 
 
-def download_attempt(url: str, digest: str, maximum: int, allowed_host: str) -> bytes:
+def download_attempt(url: str, digest: str, maximum: int) -> bytes:
     opener = urllib.request.build_opener(urllib.request.ProxyHandler({}), NoRedirect())
     for hop in range(5):
         parsed = urllib.parse.urlsplit(url)
-        if (parsed.scheme != 'https' or parsed.hostname != allowed_host
+        if (parsed.scheme != 'https' or not parsed.hostname
                 or parsed.username or parsed.password
                 or parsed.fragment or parsed.port not in (None, 443)):
             raise Error('calendar release redirect rejected')
@@ -247,13 +247,13 @@ def release_metadata(prefix: str, *, agenda: bool = False) -> dict[str, str]:
     raise Error('unsupported native calendar release')
 
 
-def release_source(pin: dict[str, str]) -> tuple[str, str, str]:
+def release_source(pin: dict[str, str]) -> tuple[str, str]:
     parsed = urllib.parse.urlsplit(pin['URL'])
     archive_root = PurePosixPath(parsed.path).name.removesuffix('.tar.gz')
     if (not archive_root or not re.fullmatch(r'[A-Za-z0-9._-]+', archive_root)
             or parsed.hostname is None):
         raise Error('calendar release URL is malformed')
-    return pin['URL'], parsed.hostname, archive_root
+    return pin['URL'], archive_root
 
 
 def configured_archive_limits() -> tuple[int, int, int, int]:
@@ -276,12 +276,12 @@ def configured_archive_limits() -> tuple[int, int, int, int]:
 
 
 def install_agenda_release(pin: dict[str, str], metadata: dict[str, str],
-                           url: str, allowed_host: str, archive_root: str,
+                           url: str, archive_root: str,
                            archive_limits: tuple[int, int, int, int]) -> None:
     maximum_expanded_bytes, maximum_member_bytes, _, agenda_member_limit = archive_limits
     version = pin['VERSION']
     assets = members(
-        download(url, pin['SHA256'], int(pin['MAXIMUM_BYTES']), allowed_host),
+        download(url, pin['SHA256'], int(pin['MAXIMUM_BYTES'])),
         archive_root,
         {metadata['BINARY_MEMBER'], metadata['SCHEMA_MEMBER'],
          metadata['LICENSE_MEMBER'], metadata['ICON_MEMBER'],
@@ -415,13 +415,13 @@ def main() -> None:
     for prefix in ('WAYCAL', 'CALIX'):
         pins = release_pin(prefix)
         metadata = release_metadata(prefix)
-        url, allowed_host, archive_root = release_source(pins)
+        url, archive_root = release_source(pins)
         print(f'calendar-install: downloading pinned {prefix.lower()} {pins["VERSION"]}', file=sys.stderr)
         wanted = {metadata['BINARY_MEMBER'], metadata['LICENSE_MEMBER']}
         if metadata['ICON_MEMBER']:
             wanted.add(metadata['ICON_MEMBER'])
         assets = members(
-            download(url, pins['SHA256'], int(pins['MAXIMUM_BYTES']), allowed_host),
+            download(url, pins['SHA256'], int(pins['MAXIMUM_BYTES'])),
             archive_root, wanted,
             member_limit=archive_limits[2],
             extra_member_pattern=metadata['EXTRA_MEMBER_PATTERN'],
@@ -455,8 +455,8 @@ def main() -> None:
         raise Error('calendar server URL is malformed')
     agenda_pin = release_pin('AGENDA')
     agenda_metadata = release_metadata('AGENDA', agenda=True)
-    url, allowed_host, archive_root = release_source(agenda_pin)
-    install_agenda_release(agenda_pin, agenda_metadata, url, allowed_host, archive_root, archive_limits)
+    url, archive_root = release_source(agenda_pin)
+    install_agenda_release(agenda_pin, agenda_metadata, url, archive_root, archive_limits)
     bootstrap(stage, account, agenda_metadata, server_url.rstrip('/'))
 
 

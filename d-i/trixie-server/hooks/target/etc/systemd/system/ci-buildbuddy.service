@@ -1,13 +1,17 @@
 [Unit]
 Description=Local BuildBuddy cache
-After=network-online.target systemd-tmpfiles-setup.service
+After=network-online.target systemd-tmpfiles-setup.service apparmor.service nftables.service
 Wants=network-online.target
+Requires=apparmor.service nftables.service
+StartLimitIntervalSec=10min
+StartLimitBurst=5
 RequiresMountsFor=/pool/db/buildbuddy /pool/cache/buildbuddy /pool/podman/users/buildbuddy /run/buildbuddy
 ConditionPathExists=/usr/local/libexec/buildbuddy
 ConditionPathExists=/etc/system-config/ci-runners/buildbuddy.yaml
 
 [Service]
 Type=exec
+Slice=ci-buildbuddy.slice
 User=buildbuddy
 Group=buildbuddy
 Environment=HOME=/pool/podman/users/buildbuddy
@@ -21,6 +25,18 @@ RestartSec=5s
 TimeoutStartSec=120s
 TimeoutStopSec=30s
 KillMode=control-group
+AppArmorProfile=ci-buildbuddy
+ProtectProc=invisible
+ProcSubset=pid
+ProtectClock=yes
+DevicePolicy=closed
+CapabilityBoundingSet=
+CPUWeight=100
+IOWeight=100
+MemoryHigh=30%
+MemoryMax=50%
+TasksMax=1024
+LimitNOFILE=65536
 NoNewPrivileges=yes
 PrivateTmp=yes
 ProtectSystem=strict

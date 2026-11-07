@@ -1,0 +1,41 @@
+# Link-idle mitigation for the reported 15b7:5006 NVMe endpoint only.
+# Let the kernel coordinate both ends of the link; never reset a controller
+# or force ASPM ownership from firmware.
+# Disable the substates individually as well: newer kernels can manage them
+# independently of L1. A kernel that withholds ASPM control (including
+# FADT/firmware ownership) exposes no link knobs; the separate device power
+# controls below still apply. The reported P15s also enforces kernel lockdown,
+# which prohibits raw PCI configuration writes. Use the kernel's per-device
+# correctable AER log limit (Linux >= 6.16) for the requested workaround instead.
+# A positive interval with burst zero suppresses this endpoint's correctable
+# messages, including the root-port message naming it. Counters, tracing, error
+# handling, and nonfatal/fatal reporting remain active. This is log suppression;
+# it cannot repair a physical link or establish SMART/media health.
+ACTION!="add|bind|change", GOTO="installer_nvme_link_idle_end"
+# APST is separate from PCIe ASPM and remains controllable when firmware
+# withholds ASPM. The NVMe driver's PM QoS callback retains this per-controller
+# limit across resets/resume; do not issue raw Set Features behind its back.
+# The controller's connected change event follows identify/APST setup, covering
+# the add event that can precede creation of its latency-tolerance attribute.
+SUBSYSTEM=="nvme", KERNEL=="nvme[0-9]*", ATTR{model}=="WDC PC SN730 SDBQNTY-512G-1001*", ATTRS{vendor}=="0x15b7", ATTRS{device}=="0x5006", TEST=="power/pm_qos_latency_tolerance_us", ATTR{power/pm_qos_latency_tolerance_us}="0"
+SUBSYSTEM!="pci", GOTO="installer_nvme_link_idle_end"
+ATTR{vendor}!="0x15b7", GOTO="installer_nvme_link_idle_end"
+ATTR{device}!="0x5006", GOTO="installer_nvme_link_idle_end"
+ATTR{class}!="0x010802", GOTO="installer_nvme_link_idle_end"
+# Keep this endpoint in runtime D0 without changing system suspend or the
+# upstream bridge. These supported attributes also work without ASPM knobs.
+TEST=="power/control", ATTR{power/control}="on"
+TEST=="d3cold_allowed", ATTR{d3cold_allowed}="0"
+TEST=="link/l0s_aspm", ATTR{link/l0s_aspm}="0"
+TEST=="link/l1_2_aspm", ATTR{link/l1_2_aspm}="0"
+TEST=="link/l1_1_aspm", ATTR{link/l1_1_aspm}="0"
+TEST=="link/l1_2_pcipm", ATTR{link/l1_2_pcipm}="0"
+TEST=="link/l1_1_pcipm", ATTR{link/l1_1_pcipm}="0"
+TEST=="link/l1_aspm", ATTR{link/l1_aspm}="0"
+TEST=="link/clkpm", ATTR{link/clkpm}="0"
+# Keep the interval positive: interval zero DISABLES limiting and logs every
+# error. These values belong to the PCI device object and survive NVMe resets
+# and suspend; enumeration/bind/change reapplies them if the device is recreated.
+TEST=="aer/correctable_ratelimit_interval_ms", ATTR{aer/correctable_ratelimit_interval_ms}="5000"
+TEST=="aer/correctable_ratelimit_burst", ATTR{aer/correctable_ratelimit_burst}="0"
+LABEL="installer_nvme_link_idle_end"
